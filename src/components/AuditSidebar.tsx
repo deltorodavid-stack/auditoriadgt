@@ -1,18 +1,6 @@
 import { Check } from "lucide-react";
 import { useAudit } from "@/contexts/AuditContext";
-
-const BLOCKS = [
-  "Visión y Propósito",
-  "Propuesta de Valor",
-  "Cliente Ideal",
-  "Modelo de Negocio",
-  "Estrategia Comercial",
-  "Marketing y Marca",
-  "Operaciones",
-  "Equipo y Cultura",
-  "Finanzas",
-  "Plan de Acción",
-];
+import { AUDIT_BLOCKS } from "@/data/auditQuestions";
 
 export function AuditSidebar() {
   const { currentBlock, setCurrentBlock, completedBlocks } = useAudit();
@@ -30,34 +18,32 @@ export function AuditSidebar() {
       {/* Steps */}
       <nav className="flex-1 overflow-y-auto px-4 py-4">
         <ul className="space-y-1">
-          {BLOCKS.map((name, i) => {
-            const step = i + 1;
-            const isActive = currentBlock === step;
-            const isCompleted = completedBlocks.has(step);
+          {AUDIT_BLOCKS.map((block) => {
+            const isActive = currentBlock === block.number;
+            const isCompleted = completedBlocks.has(block.number);
 
             return (
-              <li key={step}>
+              <li key={block.number}>
                 <button
-                  onClick={() => setCurrentBlock(step)}
+                  onClick={() => setCurrentBlock(block.number)}
                   className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors duration-150 ${
                     isActive
-                      ? "bg-sidebar-accent text-foreground"
+                      ? "bg-sidebar-accent text-foreground font-medium"
                       : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
                   }`}
                 >
-                  {/* Step indicator */}
                   <span
                     className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium transition-colors ${
                       isCompleted
                         ? "bg-primary text-primary-foreground"
                         : isActive
-                        ? "border border-primary text-primary"
+                        ? "border-2 border-primary text-primary"
                         : "border border-border text-muted-foreground"
                     }`}
                   >
-                    {isCompleted ? <Check className="h-3.5 w-3.5" /> : step}
+                    {isCompleted ? <Check className="h-3.5 w-3.5" /> : block.number}
                   </span>
-                  <span className="truncate">{name}</span>
+                  <span className="truncate">{block.title}</span>
                 </button>
               </li>
             );
@@ -71,7 +57,7 @@ export function AuditSidebar() {
           <span>Progreso</span>
           <span>{completedBlocks.size}/10</span>
         </div>
-        <div className="mt-2 h-1 overflow-hidden rounded-full bg-secondary">
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary">
           <div
             className="h-full rounded-full bg-primary transition-all duration-300"
             style={{ width: `${(completedBlocks.size / 10) * 100}%` }}
