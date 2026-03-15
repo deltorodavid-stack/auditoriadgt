@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import type { UsuarioCliente } from "@/hooks/useTokenAuth";
 
 interface AuditContextType {
@@ -27,15 +27,14 @@ export function AuditProvider({ children }: { children: ReactNode }) {
 
   const upsertAnswer = useCallback(async (preguntaId: string, valor: string, userId: string) => {
     await supabase.from("respuestas_auditoria").upsert(
-      { usuario_cliente_id: userId, pregunta_id: preguntaId, respuesta: valor },
-      { onConflict: "usuario_cliente_id,pregunta_id" }
+      { usuario_id: userId, pregunta_id: preguntaId, respuesta: valor, bloque_n: currentBlock },
+      { onConflict: "usuario_id,pregunta_id" }
     );
-  }, []);
+  }, [currentBlock]);
 
   const saveAnswer = useCallback((preguntaId: string, valor: string) => {
     setAnswers((prev) => ({ ...prev, [preguntaId]: valor }));
 
-    // Debounce 2s
     if (debounceTimers.current[preguntaId]) {
       clearTimeout(debounceTimers.current[preguntaId]);
     }
