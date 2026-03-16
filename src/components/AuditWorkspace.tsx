@@ -4,15 +4,28 @@ import { AUDIT_BLOCKS } from "@/data/auditQuestions";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { ChevronLeft, ChevronRight, CheckCircle2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+
+function QualityHint({ value }: { value: string }) {
+  if (!value || value.length === 0 || value.length >= 30) return null;
+  return (
+    <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-600">
+      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+      David recomienda razonar más la respuesta para obtener mejores resultados.
+    </p>
+  );
+}
 
 export function AuditWorkspace() {
   const { currentBlock, setCurrentBlock, answers, saveAnswer, markBlockComplete, usuario } = useAudit();
 
   const block = AUDIT_BLOCKS.find((b) => b.number === currentBlock);
   if (!block) return null;
+
+  const progressPercent = (currentBlock / 10) * 100;
 
   const goNext = () => {
     markBlockComplete(currentBlock);
@@ -38,6 +51,26 @@ export function AuditWorkspace() {
     <div className="flex min-h-screen bg-background">
       <AuditSidebar />
       <main className="ml-64 flex-1">
+        {/* Header with logo + progress */}
+        <div className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur-sm">
+          <div className="mx-auto max-w-3xl px-8 py-4">
+            <div className="flex items-center justify-center">
+              <img
+                src="/images/logo-david-del-toro.png"
+                alt="David Del Toro - Consultoría Estratégica"
+                className="h-auto max-w-[250px]"
+              />
+            </div>
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                <span>Paso {currentBlock} de 10</span>
+                <span>{Math.round(progressPercent)}%</span>
+              </div>
+              <Progress value={progressPercent} className="h-2" />
+            </div>
+          </div>
+        </div>
+
         <div className="mx-auto max-w-3xl px-8 py-12">
           <div className="animate-fade-in" key={currentBlock}>
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
@@ -74,13 +107,16 @@ export function AuditWorkspace() {
                       </div>
                     </div>
                   ) : (
-                    <Textarea
-                      id={q.id}
-                      placeholder={q.type === "free" ? "Escribe libremente aquí..." : "Tu respuesta..."}
-                      value={answers[q.id] || ""}
-                      onChange={(e) => saveAnswer(q.id, e.target.value)}
-                      className="min-h-[100px] resize-y bg-background"
-                    />
+                    <>
+                      <Textarea
+                        id={q.id}
+                        placeholder={q.type === "free" ? "Escribe libremente aquí..." : "Tu respuesta..."}
+                        value={answers[q.id] || ""}
+                        onChange={(e) => saveAnswer(q.id, e.target.value)}
+                        className="min-h-[100px] resize-y bg-background"
+                      />
+                      {q.type === "textarea" && <QualityHint value={answers[q.id] || ""} />}
+                    </>
                   )}
                 </div>
               ))}

@@ -15,6 +15,15 @@ export function WelcomeScreen() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="animate-fade-in w-full max-w-2xl">
+        {/* Logo */}
+        <div className="mb-8 text-center">
+          <img
+            src="/images/logo-david-del-toro.png"
+            alt="David Del Toro - Consultoría Estratégica"
+            className="mx-auto h-auto max-w-[250px]"
+          />
+        </div>
+
         {/* Branding */}
         <div className="mb-12 text-center">
           <p className="mb-2 text-sm font-medium uppercase tracking-[0.3em] text-muted-foreground">
@@ -27,7 +36,7 @@ export function WelcomeScreen() {
         </div>
 
         {/* Introduction Card */}
-        <div className="rounded-lg border border-border bg-card p-8 md:p-10">
+        <div className="rounded-lg border border-border bg-card p-8 shadow-sm md:p-10">
           <h2 className="mb-4 text-lg font-display font-semibold text-foreground">
             Antes de comenzar
           </h2>
