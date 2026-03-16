@@ -60,3 +60,9 @@
     @apply font-display;
   }
 }
+
+@media print {
+  body { background: white !important; }
+  [role="dialog"] { position: static !important; max-width: 100% !important; max-height: none !important; overflow: visible !important; box-shadow: none !important; border: none !important; }
+  .print\\:hidden { display: none !important; }
+}
