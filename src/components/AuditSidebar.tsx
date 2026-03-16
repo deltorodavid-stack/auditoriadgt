@@ -7,8 +7,14 @@ export function AuditSidebar() {
 
   return (
     <aside className="fixed left-0 top-0 flex h-screen w-64 flex-col border-r border-border bg-sidebar">
-      {/* Header */}
-      <div className="border-b border-border px-6 py-5">
+      {/* Logo + Header */}
+      <div className="border-b border-border px-6 py-4">
+        <img
+          src="/images/logo-david-del-toro.png"
+          alt="David Del Toro"
+          className="mb-3 h-auto"
+          style={{ maxHeight: '55px' }}
+        />
         <p className="text-[10px] font-medium uppercase tracking-[0.25em] text-muted-foreground">
           Auditoría Estratégica
         </p>

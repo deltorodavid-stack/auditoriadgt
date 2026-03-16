@@ -15,44 +15,39 @@ export function WelcomeScreen() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="animate-fade-in w-full max-w-2xl">
-        {/* Logo */}
-        <div className="mb-8 text-center">
-          <img
-            src="/images/logo-david-del-toro.png"
-            alt="David Del Toro - Consultoría Estratégica"
-            className="mx-auto h-auto max-w-[250px]"
-          />
-        </div>
-
-        {/* Branding */}
-        <div className="mb-12 text-center">
-          <p className="mb-2 text-sm font-medium uppercase tracking-[0.3em] text-muted-foreground">
-            Auditoría Estratégica
-          </p>
-          <h1 className="text-4xl font-display font-bold text-foreground md:text-5xl">
-            La Receta
-          </h1>
-          <div className="mx-auto mt-4 h-px w-24 bg-primary" />
-        </div>
-
         {/* Introduction Card */}
         <div className="rounded-lg border border-border bg-card p-8 shadow-sm md:p-10">
-          <h2 className="mb-4 text-lg font-display font-semibold text-foreground">
-            Antes de comenzar
+          <h2 className="mb-6 text-xl font-display font-bold text-foreground uppercase tracking-wide">
+            Introducción — Leer urgente antes de rellenar nada
           </h2>
           <div className="space-y-4 text-sm leading-relaxed text-muted-foreground">
             <p>
-              Esta auditoría estratégica está diseñada para profundizar en los pilares fundamentales
-              de tu negocio. Consta de <strong className="text-foreground">10 bloques temáticos</strong> que
-              abordan desde tu visión y propuesta de valor hasta tu estrategia comercial y operativa.
+              Es importante que este cuestionario te lo tomes en serio. En caso contrario:
+            </p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Mi trabajo no será tan efectivo como queremos todas las partes.</li>
+              <li>Habremos perdido tiempo todos.</li>
+              <li>Habrás tirado tu dinero a la basura.</li>
+              <li>No sacaremos el máximo rendimiento.</li>
+            </ul>
+            <p>
+              Es importante que contestes y razones todas las preguntas. Usar monosílabos no sirve de nada.
             </p>
             <p>
-              Tómate el tiempo que necesites. Tus respuestas se guardan automáticamente, por lo que
-              puedes cerrar la ventana y volver en cualquier momento usando tu enlace personal.
+              Al final de cada bloque, hay una pregunta libre: usa esta pregunta para que rellenes todo lo que se te ocurra y que no te haya preguntado, si no tienes nada que añadir, escribe "nada más que aportar".
             </p>
             <p>
-              La honestidad y la reflexión profunda son esenciales para obtener un diagnóstico
-              preciso. No existen respuestas correctas o incorrectas.
+              Si tú no te preocupas en darme información de tu empresa:
+            </p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>¿Por qué debo preocuparme yo por tu empresa?</li>
+              <li>No tendré información para realizar mi trabajo ni sacar el máximo rendimiento.</li>
+            </ul>
+            <p>
+              Dedícate un día de la semana para hacerlo todo de una vez. Debes concentrarte en esto, si lo haces a ratos, no nos servirá de nada. Aíslate y piensa bien todas las preguntas, <strong className="text-foreground">"cuanto más lo trabajes mejor será el resultado conseguido"</strong>.
+            </p>
+            <p className="font-medium text-foreground">
+              Si no le das la importancia que tiene a este cuestionario es mejor que no trabajemos juntos.
             </p>
           </div>
 
@@ -68,8 +63,8 @@ export function WelcomeScreen() {
               htmlFor="commitment"
               className="cursor-pointer text-sm leading-relaxed text-muted-foreground"
             >
-              Me comprometo a responder con honestidad y dedicar el tiempo necesario para completar
-              esta auditoría estratégica de forma reflexiva y completa.
+              He leído la introducción y me comprometo a dedicar el tiempo necesario para completar
+              esta auditoría de forma reflexiva y completa.
             </label>
           </div>
 
