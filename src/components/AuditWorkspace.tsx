@@ -54,14 +54,7 @@ export function AuditWorkspace() {
         {/* Header with logo + progress */}
         <div className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur-sm">
           <div className="mx-auto max-w-3xl px-8 py-4">
-            <div className="flex items-center justify-center">
-              <img
-                src="/images/logo-david-del-toro.png"
-                alt="David Del Toro - Consultoría Estratégica"
-                className="h-auto max-w-[250px]"
-              />
-            </div>
-            <div className="mt-4">
+            <div>
               <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
                 <span>Paso {currentBlock} de 10</span>
                 <span>{Math.round(progressPercent)}%</span>
