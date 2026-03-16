@@ -142,7 +142,7 @@ export default function Admin() {
                     </TableCell>
                     <TableCell>
                       {user.finalizado ? (
-                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Finalizada</Badge>
+                        <Badge className="bg-secondary text-primary hover:bg-secondary">Finalizada</Badge>
                       ) : (
                         <Badge variant="secondary">En proceso</Badge>
                       )}
