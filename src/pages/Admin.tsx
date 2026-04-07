@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { AUDIT_BLOCKS } from "@/data/auditQuestions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,8 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, FileDown, ArrowLeft, Eye } from "lucide-react";
+import { Loader2, FileDown, ArrowLeft, Eye, LogOut } from "lucide-react";
+import Auth from "./Auth";
 
 interface AuditUser {
   id: string;
@@ -24,22 +26,21 @@ interface AuditUser {
   last_updated: string | null;
 }
 
-// Total questions across all blocks
 const TOTAL_QUESTIONS = AUDIT_BLOCKS.reduce((sum, b) => sum + b.questions.length, 0);
 
 export default function Admin() {
+  const { loading: authLoading, user } = useAuth();
   const [users, setUsers] = useState<AuditUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<AuditUser | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (user) fetchData();
+  }, [user]);
 
   async function fetchData() {
     setLoading(true);
 
-    // Fetch users with client names
     const { data: usuarios } = await supabase
       .from("usuarios_cliente")
       .select("id, nombre_usuario, email, finalizado, ultimo_bloque_completado, created_at, cliente_id");
@@ -86,6 +87,23 @@ export default function Admin() {
     setTimeout(() => window.print(), 300);
   }
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Auth />;
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -96,7 +114,6 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
@@ -105,9 +122,14 @@ export default function Admin() {
               Panel de Administración
             </span>
           </div>
-          <Button variant="outline" size="sm" onClick={() => (window.location.href = "/")}>
-            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Volver
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => (window.location.href = "/")}>
+              <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Volver
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <LogOut className="mr-1.5 h-3.5 w-3.5" /> Salir
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -179,7 +201,6 @@ export default function Admin() {
         </div>
       </main>
 
-      {/* Detail Dialog */}
       <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto print:max-w-none print:shadow-none">
           <DialogHeader>

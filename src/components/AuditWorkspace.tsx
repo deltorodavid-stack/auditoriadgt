@@ -20,7 +20,7 @@ function QualityHint({ value }: { value: string }) {
 }
 
 export function AuditWorkspace() {
-  const { currentBlock, setCurrentBlock, answers, saveAnswer, markBlockComplete, usuario } = useAudit();
+  const { currentBlock, setCurrentBlock, answers, saveAnswer, markBlockComplete, userId } = useAudit();
 
   const block = AUDIT_BLOCKS.find((b) => b.number === currentBlock);
   if (!block) return null;
@@ -38,11 +38,11 @@ export function AuditWorkspace() {
 
   const handleFinalize = async () => {
     markBlockComplete(currentBlock);
-    if (usuario) {
+    if (userId) {
       await supabase
         .from("usuarios_cliente")
         .update({ finalizado: true, ultimo_bloque_completado: 10 })
-        .eq("id", usuario.id);
+        .eq("id", userId);
     }
     toast({ title: "¡Auditoría finalizada!", description: "Gracias por completar La Receta." });
   };
@@ -51,7 +51,7 @@ export function AuditWorkspace() {
     <div className="flex min-h-screen bg-background">
       <AuditSidebar />
       <main className="ml-64 flex-1">
-        {/* Header with logo + progress */}
+        {/* Header with progress */}
         <div className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur-sm">
           <div className="mx-auto max-w-3xl px-8 py-4">
             <div>

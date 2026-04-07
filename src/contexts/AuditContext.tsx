@@ -1,14 +1,13 @@
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { UsuarioCliente } from "@/hooks/useTokenAuth";
 
 interface AuditContextType {
   currentBlock: number;
   setCurrentBlock: (block: number) => void;
   started: boolean;
   setStarted: (v: boolean) => void;
-  usuario: UsuarioCliente | null;
-  setUsuario: (u: UsuarioCliente | null) => void;
+  userId: string | null;
+  setUserId: (id: string | null) => void;
   answers: Record<string, string>;
   saveAnswer: (preguntaId: string, valor: string) => void;
   completedBlocks: Set<number>;
@@ -20,14 +19,14 @@ const AuditContext = createContext<AuditContextType | null>(null);
 export function AuditProvider({ children }: { children: ReactNode }) {
   const [currentBlock, setCurrentBlock] = useState(0);
   const [started, setStarted] = useState(false);
-  const [usuario, setUsuario] = useState<UsuarioCliente | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [completedBlocks, setCompletedBlocks] = useState<Set<number>>(new Set());
   const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
 
-  const upsertAnswer = useCallback(async (preguntaId: string, valor: string, userId: string) => {
+  const upsertAnswer = useCallback(async (preguntaId: string, valor: string, uid: string) => {
     await supabase.from("respuestas_auditoria").upsert(
-      { usuario_id: userId, pregunta_id: preguntaId, respuesta: valor, bloque_n: currentBlock },
+      { usuario_id: uid, pregunta_id: preguntaId, respuesta: valor, bloque_n: currentBlock },
       { onConflict: "usuario_id,pregunta_id" }
     );
   }, [currentBlock]);
@@ -39,11 +38,11 @@ export function AuditProvider({ children }: { children: ReactNode }) {
       clearTimeout(debounceTimers.current[preguntaId]);
     }
     debounceTimers.current[preguntaId] = setTimeout(() => {
-      if (usuario) {
-        upsertAnswer(preguntaId, valor, usuario.id);
+      if (userId) {
+        upsertAnswer(preguntaId, valor, userId);
       }
     }, 2000);
-  }, [usuario, upsertAnswer]);
+  }, [userId, upsertAnswer]);
 
   const markBlockComplete = useCallback((block: number) => {
     setCompletedBlocks((prev) => new Set(prev).add(block));
@@ -54,7 +53,7 @@ export function AuditProvider({ children }: { children: ReactNode }) {
       value={{
         currentBlock, setCurrentBlock,
         started, setStarted,
-        usuario, setUsuario,
+        userId, setUserId,
         answers, saveAnswer,
         completedBlocks, markBlockComplete,
       }}

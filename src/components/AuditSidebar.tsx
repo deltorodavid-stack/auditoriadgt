@@ -1,9 +1,16 @@
-import { Check } from "lucide-react";
+import { Check, LogOut } from "lucide-react";
 import { useAudit } from "@/contexts/AuditContext";
 import { AUDIT_BLOCKS } from "@/data/auditQuestions";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 
 export function AuditSidebar() {
   const { currentBlock, setCurrentBlock, completedBlocks } = useAudit();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
 
   return (
     <aside className="fixed left-0 top-0 flex h-screen w-64 flex-col border-r border-border bg-sidebar">
@@ -69,6 +76,15 @@ export function AuditSidebar() {
             style={{ width: `${(completedBlocks.size / 10) * 100}%` }}
           />
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLogout}
+          className="mt-3 w-full justify-start gap-2 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          Cerrar sesión
+        </Button>
       </div>
     </aside>
   );
