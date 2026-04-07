@@ -1,18 +1,18 @@
-import { useTokenAuth } from "@/hooks/useTokenAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { AuditProvider, useAudit } from "@/contexts/AuditContext";
-import { AccessDenied } from "@/components/AccessDenied";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { AuditWorkspace } from "@/components/AuditWorkspace";
 import { Loader2 } from "lucide-react";
 import { useEffect } from "react";
+import Auth from "./Auth";
 
 function AuditApp() {
-  const { loading, error, usuario } = useTokenAuth();
-  const { started, setUsuario } = useAudit();
+  const { loading, user } = useAuth();
+  const { started, setUserId } = useAudit();
 
   useEffect(() => {
-    if (usuario) setUsuario(usuario);
-  }, [usuario, setUsuario]);
+    if (user) setUserId(user.id);
+  }, [user, setUserId]);
 
   if (loading) {
     return (
@@ -22,8 +22,8 @@ function AuditApp() {
     );
   }
 
-  if (error || !usuario) {
-    return <AccessDenied message={error || "Token de acceso inválido."} />;
+  if (!user) {
+    return <Auth />;
   }
 
   if (!started) {
