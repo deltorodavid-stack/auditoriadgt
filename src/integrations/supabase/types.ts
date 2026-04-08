@@ -72,6 +72,7 @@ export type Database = {
           cliente_id: string | null
           created_at: string | null
           email: string | null
+          empresa_nombre_directo: string | null
           finalizado: boolean | null
           id: string
           nombre_usuario: string | null
@@ -82,6 +83,7 @@ export type Database = {
           cliente_id?: string | null
           created_at?: string | null
           email?: string | null
+          empresa_nombre_directo?: string | null
           finalizado?: boolean | null
           id?: string
           nombre_usuario?: string | null
@@ -92,6 +94,7 @@ export type Database = {
           cliente_id?: string | null
           created_at?: string | null
           email?: string | null
+          empresa_nombre_directo?: string | null
           finalizado?: boolean | null
           id?: string
           nombre_usuario?: string | null

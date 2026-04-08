@@ -10,6 +10,7 @@ export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [empresa, setEmpresa] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,13 +26,24 @@ export default function Auth() {
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) {
         toast({ title: "Error al registrarse", description: error.message, variant: "destructive" });
-      } else {
-        if (data.user) {
-          await supabase.from("usuarios_cliente").insert({
-            id: data.user.id,
-            email: data.user.email,
-          });
-        }
+      } else if (data.user) {
+        // 1. Create client record
+        const { data: clienteData, error: clienteError } = await supabase
+          .from("clientes")
+          .insert({ nombre_empresa: empresa.trim() })
+          .select("id")
+          .single();
+
+        const clienteId = clienteError ? null : clienteData?.id;
+
+        // 2. Create usuarios_cliente record linking both
+        await supabase.from("usuarios_cliente").insert({
+          id: data.user.id,
+          email: data.user.email,
+          cliente_id: clienteId,
+          empresa_nombre_directo: empresa.trim(),
+        });
+
         toast({ title: "Cuenta creada", description: "Revisa tu email para confirmar tu cuenta." });
       }
     }
@@ -72,6 +84,20 @@ export default function Auth() {
                 required
               />
             </div>
+
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="empresa">Nombre de la Empresa</Label>
+                <Input
+                  id="empresa"
+                  type="text"
+                  placeholder="Tu empresa S.L."
+                  value={empresa}
+                  onChange={(e) => setEmpresa(e.target.value)}
+                  required
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="password">Contraseña</Label>

@@ -43,7 +43,7 @@ export default function Admin() {
 
     const { data: usuarios } = await supabase
       .from("usuarios_cliente")
-      .select("id, nombre_usuario, email, finalizado, ultimo_bloque_completado, created_at, cliente_id");
+      .select("id, nombre_usuario, email, finalizado, ultimo_bloque_completado, created_at, cliente_id, empresa_nombre_directo");
 
     const { data: clientes } = await supabase.from("clientes").select("id, nombre_empresa");
 
@@ -67,7 +67,7 @@ export default function Admin() {
         finalizado: u.finalizado,
         ultimo_bloque_completado: u.ultimo_bloque_completado,
         created_at: u.created_at,
-        cliente_nombre: u.cliente_id ? clientMap.get(u.cliente_id) || null : null,
+        cliente_nombre: u.empresa_nombre_directo || (u.cliente_id ? clientMap.get(u.cliente_id) || null : null),
         respuestas: respMap,
         last_updated: lastUp || u.created_at,
       };
