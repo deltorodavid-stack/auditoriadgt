@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface AuditContextType {
   currentBlock: number;
@@ -24,12 +25,40 @@ export function AuditProvider({ children }: { children: ReactNode }) {
   const [completedBlocks, setCompletedBlocks] = useState<Set<number>>(new Set());
   const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
 
+  // Load existing answers when userId is set
+  useEffect(() => {
+    if (!userId) return;
+    const loadAnswers = async () => {
+      const { data, error } = await supabase
+        .from("respuestas_auditoria")
+        .select("pregunta_id, respuesta")
+        .eq("usuario_id", userId);
+      if (error) {
+        console.error("Error loading answers:", error.message);
+        return;
+      }
+      if (data && data.length > 0) {
+        const loaded: Record<string, string> = {};
+        data.forEach((row) => {
+          if (row.respuesta) loaded[row.pregunta_id] = row.respuesta;
+        });
+        setAnswers(loaded);
+      }
+    };
+    loadAnswers();
+  }, [userId]);
+
   const upsertAnswer = useCallback(async (preguntaId: string, valor: string, uid: string) => {
     const { error } = await supabase.from("respuestas_auditoria").upsert(
       { usuario_id: uid, pregunta_id: preguntaId, respuesta: valor, bloque_n: currentBlock },
       { onConflict: "usuario_id,pregunta_id" }
     );
-    if (error) console.error("Error saving answer:", error.message);
+    if (error) {
+      console.error("Error saving answer:", error.message);
+      toast.error("Error al guardar: " + error.message);
+    } else {
+      toast.success("Guardado correctamente");
+    }
   }, [currentBlock]);
 
   const saveAnswer = useCallback((preguntaId: string, valor: string) => {

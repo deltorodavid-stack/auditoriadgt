@@ -36,13 +36,13 @@ export default function Auth() {
 
         const clienteId = clienteError ? null : clienteData?.id;
 
-        // 2. Create usuarios_cliente record linking both
-        await supabase.from("usuarios_cliente").insert({
+        // 2. Create/update usuarios_cliente record linking both
+        await supabase.from("usuarios_cliente").upsert({
           id: data.user.id,
           email: data.user.email,
           cliente_id: clienteId,
           empresa_nombre_directo: empresa.trim(),
-        });
+        }, { onConflict: "id" });
 
         toast({ title: "Cuenta creada", description: "Revisa tu email para confirmar tu cuenta." });
       }
