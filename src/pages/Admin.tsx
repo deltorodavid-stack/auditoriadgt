@@ -43,7 +43,7 @@ export default function Admin() {
 
     const { data: usuarios } = await supabase
       .from("usuarios_cliente")
-      .select("id, nombre_usuario, email, finalizado, ultimo_bloque_completado, created_at, cliente_id");
+      .select("id, nombre_usuario, email, finalizado, ultimo_bloque_completado, created_at, cliente_id, empresa_nombre_directo");
 
     const { data: clientes } = await supabase.from("clientes").select("id, nombre_empresa");
 
