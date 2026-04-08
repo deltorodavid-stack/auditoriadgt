@@ -21,7 +21,7 @@ export function useAuth(): AuthState {
         .from("usuarios_cliente")
         .select("id")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
       if (!data) {
         await supabase.from("usuarios_cliente").insert({
           id: user.id,
