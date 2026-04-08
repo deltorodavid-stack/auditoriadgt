@@ -85,6 +85,20 @@ export default function Auth() {
               />
             </div>
 
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="empresa">Nombre de la Empresa</Label>
+                <Input
+                  id="empresa"
+                  type="text"
+                  placeholder="Tu empresa S.L."
+                  value={empresa}
+                  onChange={(e) => setEmpresa(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="password">Contraseña</Label>
               <Input
