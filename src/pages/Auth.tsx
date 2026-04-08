@@ -22,10 +22,16 @@ export default function Auth() {
         toast({ title: "Error al iniciar sesión", description: error.message, variant: "destructive" });
       }
     } else {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) {
         toast({ title: "Error al registrarse", description: error.message, variant: "destructive" });
       } else {
+        if (data.user) {
+          await supabase.from("usuarios_cliente").insert({
+            id: data.user.id,
+            email: data.user.email,
+          });
+        }
         toast({ title: "Cuenta creada", description: "Revisa tu email para confirmar tu cuenta." });
       }
     }

@@ -16,6 +16,20 @@ export function useAuth(): AuthState {
   });
 
   useEffect(() => {
+    const syncUser = async (user: User) => {
+      const { data } = await supabase
+        .from("usuarios_cliente")
+        .select("id")
+        .eq("id", user.id)
+        .single();
+      if (!data) {
+        await supabase.from("usuarios_cliente").insert({
+          id: user.id,
+          email: user.email,
+        });
+      }
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setState({
@@ -23,6 +37,9 @@ export function useAuth(): AuthState {
           user: session?.user ?? null,
           session,
         });
+        if (session?.user) {
+          syncUser(session.user);
+        }
       }
     );
 
@@ -32,6 +49,9 @@ export function useAuth(): AuthState {
         user: session?.user ?? null,
         session,
       });
+      if (session?.user) {
+        syncUser(session.user);
+      }
     });
 
     return () => subscription.unsubscribe();

@@ -25,10 +25,11 @@ export function AuditProvider({ children }: { children: ReactNode }) {
   const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
 
   const upsertAnswer = useCallback(async (preguntaId: string, valor: string, uid: string) => {
-    await supabase.from("respuestas_auditoria").upsert(
+    const { error } = await supabase.from("respuestas_auditoria").upsert(
       { usuario_id: uid, pregunta_id: preguntaId, respuesta: valor, bloque_n: currentBlock },
       { onConflict: "usuario_id,pregunta_id" }
     );
+    if (error) console.error("Error saving answer:", error.message);
   }, [currentBlock]);
 
   const saveAnswer = useCallback((preguntaId: string, valor: string) => {
