@@ -22,6 +22,7 @@ function QualityHint({ value }: { value: string }) {
 
 export function AuditWorkspace() {
   const { currentBlock, setCurrentBlock, answers, saveAnswer, markBlockComplete, userId } = useAudit();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const block = AUDIT_BLOCKS.find((b) => b.number === currentBlock);
   if (!block) return null;
