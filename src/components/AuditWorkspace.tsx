@@ -51,12 +51,21 @@ export function AuditWorkspace() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AuditSidebar />
-      <main className="ml-64 flex-1">
+      <AuditSidebar mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <main className="flex-1 md:ml-64">
         {/* Header with progress */}
-        <div className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur-sm">
-          <div className="mx-auto max-w-3xl px-8 py-4">
-            <div>
+        <div className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur-sm">
+          <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4 md:px-8">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden -ml-2"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Abrir menú"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <div className="flex-1">
               <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
                 <span>Paso {currentBlock} de 10</span>
                 <span>{Math.round(progressPercent)}%</span>
@@ -66,7 +75,7 @@ export function AuditWorkspace() {
           </div>
         </div>
 
-        <div className="mx-auto max-w-3xl px-8 py-12">
+        <div className="mx-auto max-w-3xl px-4 py-8 md:px-8 md:py-12">
           <div className="animate-fade-in" key={currentBlock}>
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
               Bloque {currentBlock} de 10
