@@ -32,6 +32,70 @@ export type Database = {
         }
         Relationships: []
       }
+      evaluaciones_eos: {
+        Row: {
+          id: string
+          cliente_id: string | null
+          respuestas: Json
+          puntuacion: number | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          cliente_id?: string | null
+          respuestas?: Json
+          puntuacion?: number | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          cliente_id?: string | null
+          respuestas?: Json
+          puntuacion?: number | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evaluaciones_eos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      plantillas: {
+        Row: {
+          id: string
+          cliente_id: string | null
+          tipo: string
+          datos: Json
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          cliente_id?: string | null
+          tipo: string
+          datos?: Json
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          cliente_id?: string | null
+          tipo?: string
+          datos?: Json
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plantillas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       respuestas_auditoria: {
         Row: {
           bloque_n: number
