@@ -1,77 +1,124 @@
+import { useEffect, useState } from "react";
 import { usePlantilla } from "@/hooks/usePlantilla";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, Save, FolderPlus } from "lucide-react";
 import { PrintButton, PrintHeader } from "@/components/ui/print";
 import {
-  NoClientSelected,
-  LoadingSpinner,
-  SavingIndicator,
-  FieldHint,
-  type NoClientProps,
+  NoClientSelected, LoadingSpinner, SavingIndicator,
+  FieldHint, type NoClientProps,
 } from "./shared";
 
-interface Departamento {
-  id: string;
-  nombre: string;
-  items: string[];
-}
-
-interface Data {
-  vision: string[];
-  semanales: string[];
-  departamentos: Departamento[];
-}
-
+// ── Tipos ──────────────────────────────────────────────────────────────────────
+interface Item { id: string; texto: string; responsable: string; fecha: string }
+interface Departamento { id: string; nombre: string; items: Item[] }
+interface Data { vision: Item[]; semanales: Item[]; departamentos: Departamento[] }
 const DEFAULT: Data = { vision: [], semanales: [], departamentos: [] };
 
-// ─── ListColumn definida FUERA del componente Asuntos para evitar re-mount ───
-// Si se define dentro, cada render crea un nuevo tipo de componente y React
-// desmonta/monta los inputs, perdiendo el foco al escribir.
-interface ListColProps {
-  title: string;
-  hint: string;
-  items: string[];
-  onAdd: () => void;
-  onUpdate: (i: number, v: string) => void;
-  onRemove: (i: number) => void;
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function toItem(raw: unknown, i: number): Item {
+  if (typeof raw === "string") return { id: `l-${i}`, texto: raw, responsable: "", fecha: "" };
+  const r = raw as Partial<Item>;
+  return { id: r.id || `l-${i}`, texto: r.texto || "", responsable: r.responsable || "", fecha: r.fecha || "" };
+}
+function toItems(arr: unknown[]): Item[] { return (arr || []).map(toItem); }
+function newItem(texto: string, responsable: string, fecha: string): Item {
+  return { id: `i-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, texto, responsable, fecha };
+}
+function fmtDate(d: string) {
+  if (!d) return "";
+  return new Date(d + "T12:00:00")
+    .toLocaleDateString("es-ES", { day: "numeric", month: "short" })
+    .replace(".", "");
 }
 
-function ListColumn({ title, hint, items, onAdd, onUpdate, onRemove }: ListColProps) {
+// ── ItemRow — FUERA del componente principal para evitar re-mount al escribir ──
+function ItemRow({ item, onRemove }: { item: Item; onRemove: (id: string) => void }) {
   return (
-    <div className="flex flex-col">
-      <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-sm font-display font-semibold text-foreground">{title}</h2>
-        <button onClick={onAdd} className="text-primary hover:text-primary/80 transition-colors">
-          <Plus className="h-4 w-4" />
+    <div className="group flex items-center gap-1.5 border-b border-border/40 py-1.5 last:border-0">
+      <span className="flex-1 text-sm text-foreground">{item.texto}</span>
+      {item.responsable && (
+        <span className="text-xs text-muted-foreground">({item.responsable})</span>
+      )}
+      {item.fecha && (
+        <span className="text-xs text-muted-foreground">{fmtDate(item.fecha)}</span>
+      )}
+      <button
+        onClick={() => onRemove(item.id)}
+        className="ml-1 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:!text-destructive transition-all print:hidden"
+      >
+        <Trash2 className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
+// ── AddForm — FUERA del componente, gestiona su propio estado open/campos ──────
+function AddForm({
+  placeholder,
+  onAdd,
+}: {
+  placeholder: string;
+  onAdd: (d: { texto: string; responsable: string; fecha: string }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [texto, setTexto] = useState("");
+  const [resp, setResp] = useState("");
+  const [fecha, setFecha] = useState("");
+
+  const reset = () => { setTexto(""); setResp(""); setFecha(""); setOpen(false); };
+  const submit = () => {
+    if (!texto.trim()) return;
+    onAdd({ texto, responsable: resp, fecha });
+    reset();
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="mt-3 flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors print:hidden"
+      >
+        <Plus className="h-3 w-3" /> Añadir
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-1.5 print:hidden">
+      <Input
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        placeholder={placeholder}
+        className="h-7 text-xs"
+        onKeyDown={(e) => e.key === "Enter" && submit()}
+        autoFocus
+      />
+      <div className="flex gap-1.5">
+        <Input
+          value={resp}
+          onChange={(e) => setResp(e.target.value)}
+          placeholder="Responsable"
+          className="h-7 flex-1 text-xs"
+        />
+        <Input
+          type="date"
+          value={fecha}
+          onChange={(e) => setFecha(e.target.value)}
+          className="h-7 text-xs"
+        />
+        <Button size="sm" className="h-7 shrink-0 px-3 text-xs" onClick={submit}>
+          Añadir
+        </Button>
+        <button onClick={reset} className="shrink-0 text-xs text-muted-foreground hover:text-foreground">
+          ✕
         </button>
-      </div>
-      <FieldHint>{hint}</FieldHint>
-      <div className="mt-3 flex-1 space-y-2">
-        {items.map((item, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <Input
-              value={item}
-              onChange={(e) => onUpdate(i, e.target.value)}
-              placeholder="Asunto…"
-              className="h-8 text-sm"
-            />
-            <button
-              onClick={() => onRemove(i)}
-              className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ))}
-        {items.length === 0 && (
-          <p className="text-xs italic text-muted-foreground">Sin asuntos.</p>
-        )}
       </div>
     </div>
   );
 }
 
+// ── Componente principal ───────────────────────────────────────────────────────
 export function Asuntos({ clienteId, clienteNombre }: NoClientProps) {
   const { data, setData, saveNow, saving, loading } = usePlantilla<Data>(
     clienteId,
@@ -79,62 +126,78 @@ export function Asuntos({ clienteId, clienteNombre }: NoClientProps) {
     DEFAULT
   );
 
+  // Normalizar datos antiguos (string[]) al nuevo formato Item[] una vez que carga
+  useEffect(() => {
+    if (loading) return;
+    const needsNorm = (arr: unknown[]) =>
+      (arr || []).some((i) => typeof i === "string" || !(i as Item).id);
+    if (
+      needsNorm(data.vision) ||
+      needsNorm(data.semanales) ||
+      (data.departamentos || []).some((d) => needsNorm(d.items))
+    ) {
+      setData({
+        vision: toItems(data.vision),
+        semanales: toItems(data.semanales),
+        departamentos: (data.departamentos || []).map((d) => ({
+          ...d,
+          items: toItems(d.items),
+        })),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   if (!clienteId) return <NoClientSelected />;
   if (loading) return <LoadingSpinner />;
 
-  // ── Lista simple (visión / semanales) ──────────────────────────────────────
-  const addToList = (key: "vision" | "semanales") =>
-    setData({ ...data, [key]: [...data[key], ""] });
+  const vision = data.vision || [];
+  const semanales = data.semanales || [];
+  const departamentos = data.departamentos || [];
 
-  const updateList = (key: "vision" | "semanales", i: number, val: string) => {
-    const list = [...data[key]];
-    list[i] = val;
-    setData({ ...data, [key]: list });
-  };
+  // ── Visión ─────────────────────────────────────────────────────────────────
+  const addVision = (d: { texto: string; responsable: string; fecha: string }) =>
+    setData({ ...data, vision: [...vision, newItem(d.texto, d.responsable, d.fecha)] });
+  const removeVision = (id: string) =>
+    setData({ ...data, vision: vision.filter((i) => i.id !== id) });
 
-  const removeFromList = (key: "vision" | "semanales", i: number) =>
-    setData({ ...data, [key]: data[key].filter((_, idx) => idx !== i) });
+  // ── Semanales ──────────────────────────────────────────────────────────────
+  const addSemanal = (d: { texto: string; responsable: string; fecha: string }) =>
+    setData({ ...data, semanales: [...semanales, newItem(d.texto, d.responsable, d.fecha)] });
+  const removeSemanal = (id: string) =>
+    setData({ ...data, semanales: semanales.filter((i) => i.id !== id) });
 
   // ── Departamentos ──────────────────────────────────────────────────────────
   const addDept = () =>
     setData({
       ...data,
-      departamentos: [
-        ...data.departamentos,
-        { id: `dept-${Date.now()}`, nombre: "", items: [] },
-      ],
+      departamentos: [...departamentos, { id: `dept-${Date.now()}`, nombre: "", items: [] }],
     });
-
-  const updateDept = (id: string, patch: Partial<Departamento>) =>
+  const removeDept = (id: string) =>
+    setData({ ...data, departamentos: departamentos.filter((d) => d.id !== id) });
+  const updateDeptNombre = (id: string, nombre: string) =>
     setData({
       ...data,
-      departamentos: data.departamentos.map((d) =>
-        d.id === id ? { ...d, ...patch } : d
+      departamentos: departamentos.map((d) => (d.id === id ? { ...d, nombre } : d)),
+    });
+  const addDeptItem = (deptId: string, d: { texto: string; responsable: string; fecha: string }) =>
+    setData({
+      ...data,
+      departamentos: departamentos.map((dept) =>
+        dept.id === deptId
+          ? { ...dept, items: [...(dept.items || []), newItem(d.texto, d.responsable, d.fecha)] }
+          : dept
       ),
     });
-
-  const removeDept = (id: string) =>
-    setData({ ...data, departamentos: data.departamentos.filter((d) => d.id !== id) });
-
-  const addDeptItem = (id: string) => {
-    const dept = data.departamentos.find((d) => d.id === id);
-    if (!dept) return;
-    updateDept(id, { items: [...dept.items, ""] });
-  };
-
-  const updateDeptItem = (deptId: string, i: number, val: string) => {
-    const dept = data.departamentos.find((d) => d.id === deptId);
-    if (!dept) return;
-    const items = [...dept.items];
-    items[i] = val;
-    updateDept(deptId, { items });
-  };
-
-  const removeDeptItem = (deptId: string, i: number) => {
-    const dept = data.departamentos.find((d) => d.id === deptId);
-    if (!dept) return;
-    updateDept(deptId, { items: dept.items.filter((_, idx) => idx !== i) });
-  };
+  const removeDeptItem = (deptId: string, itemId: string) =>
+    setData({
+      ...data,
+      departamentos: departamentos.map((dept) =>
+        dept.id === deptId
+          ? { ...dept, items: (dept.items || []).filter((i) => i.id !== itemId) }
+          : dept
+      ),
+    });
 
   return (
     <div className="max-w-5xl">
@@ -154,35 +217,41 @@ export function Asuntos({ clienteId, clienteNombre }: NoClientProps) {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Columna 1 */}
-        <div className="rounded-lg border border-border bg-card p-5">
-          <ListColumn
-            title="Asuntos Visión"
-            hint="Problemas estratégicos del largo plazo que afectan a la visión"
-            items={data.vision}
-            onAdd={() => addToList("vision")}
-            onUpdate={(i, v) => updateList("vision", i, v)}
-            onRemove={(i) => removeFromList("vision", i)}
-          />
+      <div className="grid gap-4 md:grid-cols-3">
+        {/* ── Columna 1: Visión ── */}
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h2 className="mb-1 text-sm font-display font-semibold text-foreground">Asuntos Visión</h2>
+          <FieldHint>Problemas estratégicos del largo plazo que afectan a la visión</FieldHint>
+          <div className="mt-3">
+            {vision.length === 0 && (
+              <p className="text-xs italic text-muted-foreground">Sin asuntos.</p>
+            )}
+            {vision.map((item) => (
+              <ItemRow key={item.id} item={item} onRemove={removeVision} />
+            ))}
+          </div>
+          <AddForm placeholder="Asunto…" onAdd={addVision} />
         </div>
 
-        {/* Columna 2 */}
-        <div className="rounded-lg border border-border bg-card p-5">
-          <ListColumn
-            title="Asuntos Semanales"
-            hint="Asuntos que se tratarán en la próxima reunión semanal"
-            items={data.semanales}
-            onAdd={() => addToList("semanales")}
-            onUpdate={(i, v) => updateList("semanales", i, v)}
-            onRemove={(i) => removeFromList("semanales", i)}
-          />
+        {/* ── Columna 2: Semanales ── */}
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h2 className="mb-1 text-sm font-display font-semibold text-foreground">Asuntos Semanales</h2>
+          <FieldHint>Asuntos que se tratarán en la próxima reunión semanal</FieldHint>
+          <div className="mt-3">
+            {semanales.length === 0 && (
+              <p className="text-xs italic text-muted-foreground">Sin asuntos.</p>
+            )}
+            {semanales.map((item) => (
+              <ItemRow key={item.id} item={item} onRemove={removeSemanal} />
+            ))}
+          </div>
+          <AddForm placeholder="Asunto…" onAdd={addSemanal} />
         </div>
 
-        {/* Columna 3: Departamentos */}
-        <div className="rounded-lg border border-border bg-card p-5">
+        {/* ── Columna 3: Departamentos (fondo azul suave) ── */}
+        <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-800 dark:bg-blue-950/20">
           <div className="mb-1 flex items-center justify-between">
-            <h2 className="text-sm font-display font-semibold">Asuntos Departamentos</h2>
+            <h2 className="text-sm font-display font-semibold text-foreground">Asuntos Departamentos</h2>
             <button
               onClick={addDept}
               className="text-primary hover:text-primary/80 transition-colors print:hidden"
@@ -193,18 +262,21 @@ export function Asuntos({ clienteId, clienteNombre }: NoClientProps) {
           </div>
           <FieldHint>Asuntos específicos por departamento o área</FieldHint>
 
-          <div className="mt-3 space-y-4">
-            {data.departamentos.length === 0 && (
+          <div className="mt-3 space-y-3">
+            {departamentos.length === 0 && (
               <p className="text-xs italic text-muted-foreground">
-                Pulsa el icono + para crear un departamento.
+                Pulsa + para crear un departamento.
               </p>
             )}
-            {data.departamentos.map((dept) => (
-              <div key={dept.id} className="rounded border border-border p-3">
+            {departamentos.map((dept) => (
+              <div
+                key={dept.id}
+                className="rounded border border-blue-200 bg-white/80 p-3 dark:border-blue-800 dark:bg-blue-950/40"
+              >
                 <div className="mb-2 flex items-center gap-2">
                   <Input
                     value={dept.nombre}
-                    onChange={(e) => updateDept(dept.id, { nombre: e.target.value })}
+                    onChange={(e) => updateDeptNombre(dept.id, e.target.value)}
                     placeholder="Nombre del departamento"
                     className="h-7 text-xs font-medium"
                   />
@@ -215,29 +287,21 @@ export function Asuntos({ clienteId, clienteNombre }: NoClientProps) {
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <div className="space-y-1.5">
-                  {dept.items.map((item, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <Input
-                        value={item}
-                        onChange={(e) => updateDeptItem(dept.id, i, e.target.value)}
-                        placeholder="Asunto…"
-                        className="h-7 text-xs"
-                      />
-                      <button
-                        onClick={() => removeDeptItem(dept.id, i)}
-                        className="shrink-0 text-muted-foreground hover:text-destructive transition-colors print:hidden"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </div>
+                <div>
+                  {(dept.items || []).length === 0 && (
+                    <p className="text-xs italic text-muted-foreground">Sin asuntos.</p>
+                  )}
+                  {(dept.items || []).map((item) => (
+                    <ItemRow
+                      key={item.id}
+                      item={item}
+                      onRemove={(id) => removeDeptItem(dept.id, id)}
+                    />
                   ))}
-                  <button
-                    onClick={() => addDeptItem(dept.id)}
-                    className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors print:hidden"
-                  >
-                    <Plus className="h-3 w-3" /> Añadir asunto
-                  </button>
+                  <AddForm
+                    placeholder="Asunto…"
+                    onAdd={(d) => addDeptItem(dept.id, d)}
+                  />
                 </div>
               </div>
             ))}
