@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import type { AdminSection } from "@/pages/Admin";
+import type { AdminSection } from "@/types/admin";
 
 interface Cliente {
   id: string;

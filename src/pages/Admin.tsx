@@ -17,18 +17,7 @@ import { Organigrama } from "@/components/eos/templates/Organigrama";
 import { Loader2 } from "lucide-react";
 import Auth from "./Auth";
 
-export type AdminSection =
-  | "auditorias"
-  | "eos_eval"
-  | "plantilla_vision"
-  | "plantilla_reunion_semanal"
-  | "plantilla_reunion_trimestral"
-  | "plantilla_reunion_anual"
-  | "plantilla_rocas"
-  | "plantilla_asuntos"
-  | "plantilla_personas"
-  | "plantilla_indicadores"
-  | "plantilla_organigrama";
+import type { AdminSection } from "@/types/admin";
 
 export default function Admin() {
   const { loading: authLoading, user } = useAuth();
