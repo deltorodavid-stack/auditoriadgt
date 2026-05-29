@@ -1,241 +1,248 @@
-import { usePlantilla } from "@/hooks/usePlantilla";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Save } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  NoClientSelected,
-  LoadingSpinner,
-  SavingIndicator,
-  SectionTitle,
-  FieldHint,
-  type NoClientProps,
-} from "./shared";
+  ReactFlow,
+  Background,
+  Controls,
+  Handle,
+  Position,
+  useNodesState,
+  useEdgesState,
+  addEdge,
+  type Node,
+  type Edge,
+  type Connection,
+  type NodeProps,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Save, Plus, Trash2 } from "lucide-react";
+import { PrintButton, PrintHeader } from "@/components/ui/print";
+import { NoClientSelected, LoadingSpinner, SavingIndicator, FieldHint, type NoClientProps } from "./shared";
+import { toast } from "sonner";
 
-interface Departamento {
-  id: string;
-  nombre: string;
-  lider: string;
-  roles: string[];
+// ── Tipos ──────────────────────────────────────────────────────────────────────
+interface OrgNodeData {
+  label: string;
+  persona: string;
+  fixed: boolean;
+  onLabelChange: (id: string, val: string) => void;
+  onPersonaChange: (id: string, val: string) => void;
+  onDelete: (id: string) => void;
+  [key: string]: unknown;
 }
 
-interface Data {
-  visionario_nombre: string;
-  visionario_responsabilidades: string;
-  integrador_nombre: string;
-  integrador_responsabilidades: string;
-  departamentos: Departamento[];
-}
-
-const DEFAULT: Data = {
-  visionario_nombre: "",
-  visionario_responsabilidades: "",
-  integrador_nombre: "",
-  integrador_responsabilidades: "",
-  departamentos: [],
-};
-
-export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
-  const { data, setData, saveNow, saving, loading } = usePlantilla<Data>(
-    clienteId,
-    "organigrama",
-    DEFAULT
+// ── Nodo personalizado ─────────────────────────────────────────────────────────
+function OrgNodeComponent({ id, data, selected }: NodeProps) {
+  const d = data as OrgNodeData;
+  return (
+    <div
+      className={`relative min-w-[140px] rounded-lg border-2 bg-card px-4 py-3 text-center shadow-sm transition-all ${
+        selected ? "border-primary" : d.fixed ? "border-primary/40" : "border-border"
+      }`}
+    >
+      <Handle type="target" position={Position.Top} className="!h-2 !w-2 !border-0 !bg-primary/40" />
+      <input
+        value={d.label as string}
+        onChange={(e) => d.onLabelChange(id, e.target.value)}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="w-full bg-transparent text-center text-sm font-semibold text-foreground outline-none placeholder:text-muted-foreground/50"
+        placeholder="Nombre"
+      />
+      <input
+        value={d.persona as string}
+        onChange={(e) => d.onPersonaChange(id, e.target.value)}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="mt-1 w-full bg-transparent text-center text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/40"
+        placeholder="Responsable"
+      />
+      {!d.fixed && (
+        <button
+          onMouseDown={(e) => { e.stopPropagation(); d.onDelete(id); }}
+          className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:!opacity-100"
+          title="Eliminar"
+        >
+          <Trash2 className="h-2.5 w-2.5" />
+        </button>
+      )}
+      <Handle type="source" position={Position.Bottom} className="!h-2 !w-2 !border-0 !bg-primary/40" />
+    </div>
   );
+}
+
+const nodeTypes = { orgNode: OrgNodeComponent };
+
+// ── Nodos y aristas iniciales ─────────────────────────────────────────────────
+const INITIAL_NODES: Node[] = [
+  { id: "visionario", type: "orgNode", position: { x: 320, y: 0 }, data: { label: "VISIONARIO", persona: "", fixed: true }, draggable: true },
+  { id: "integrador", type: "orgNode", position: { x: 320, y: 120 }, data: { label: "INTEGRADOR", persona: "", fixed: true }, draggable: true },
+  { id: "ventas", type: "orgNode", position: { x: 60, y: 270 }, data: { label: "VENTAS", persona: "", fixed: true }, draggable: true },
+  { id: "produccion", type: "orgNode", position: { x: 320, y: 270 }, data: { label: "PRODUCCIÓN", persona: "", fixed: true }, draggable: true },
+  { id: "administracion", type: "orgNode", position: { x: 580, y: 270 }, data: { label: "ADMINISTRACIÓN", persona: "", fixed: true }, draggable: true },
+];
+
+const INITIAL_EDGES: Edge[] = [
+  { id: "e-vis-int", source: "visionario", target: "integrador", type: "smoothstep" },
+  { id: "e-int-ven", source: "integrador", target: "ventas", type: "smoothstep" },
+  { id: "e-int-pro", source: "integrador", target: "produccion", type: "smoothstep" },
+  { id: "e-int-adm", source: "integrador", target: "administracion", type: "smoothstep" },
+];
+
+interface OrgData {
+  nodes: Array<{ id: string; position: { x: number; y: number }; data: { label: string; persona: string; fixed: boolean } }>;
+  edges: Array<{ id: string; source: string; target: string; type?: string }>;
+}
+
+// ── Componente principal ────────────────────────────────────────────────────────
+export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const clienteIdRef = useRef(clienteId);
+
+  useEffect(() => { clienteIdRef.current = clienteId; }, [clienteId]);
+
+  // Callbacks estables para edición de nodos
+  const onLabelChange = useCallback((id: string, val: string) => {
+    setNodes((nds) => nds.map((n) => n.id === id ? { ...n, data: { ...n.data, label: val } } : n));
+  }, [setNodes]);
+
+  const onPersonaChange = useCallback((id: string, val: string) => {
+    setNodes((nds) => nds.map((n) => n.id === id ? { ...n, data: { ...n.data, persona: val } } : n));
+  }, [setNodes]);
+
+  const onDelete = useCallback((id: string) => {
+    setNodes((nds) => nds.filter((n) => n.id !== id));
+    setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+  }, [setNodes, setEdges]);
+
+  // Inyectar callbacks en data de cada nodo
+  const nodesWithCbs = nodes.map((n) => ({
+    ...n,
+    data: { ...n.data, onLabelChange, onPersonaChange, onDelete },
+  }));
+
+  // ── Cargar desde Supabase ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!clienteId) {
+      setNodes(INITIAL_NODES.map((n) => ({ ...n, data: { ...n.data, onLabelChange, onPersonaChange, onDelete } })));
+      setEdges(INITIAL_EDGES);
+      return;
+    }
+    setLoading(true);
+    supabase.from("plantillas").select("datos").eq("cliente_id", clienteId).eq("tipo", "organigrama").maybeSingle()
+      .then(({ data: row }) => {
+        if (row?.datos) {
+          const saved = row.datos as OrgData;
+          setNodes((saved.nodes || INITIAL_NODES).map((n) => ({ ...n, type: "orgNode", data: { ...n.data, onLabelChange, onPersonaChange, onDelete } })));
+          setEdges((saved.edges || INITIAL_EDGES).map((e) => ({ ...e, type: e.type || "smoothstep" })));
+        } else {
+          setNodes(INITIAL_NODES.map((n) => ({ ...n, data: { ...n.data, onLabelChange, onPersonaChange, onDelete } })));
+          setEdges(INITIAL_EDGES);
+        }
+        setLoading(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteId]);
+
+  const onConnect = useCallback((connection: Connection) => {
+    setEdges((eds) => addEdge({ ...connection, type: "smoothstep" }, eds));
+  }, [setEdges]);
+
+  const addNode = () => {
+    const id = `node-${Date.now()}`;
+    setNodes((nds) => [
+      ...nds,
+      {
+        id,
+        type: "orgNode",
+        position: { x: 320 + Math.random() * 200 - 100, y: 420 + Math.random() * 80 },
+        data: { label: "Nuevo", persona: "", fixed: false, onLabelChange, onPersonaChange, onDelete },
+      },
+    ]);
+  };
+
+  const handleSave = async () => {
+    const cid = clienteIdRef.current;
+    if (!cid) return;
+    setSaving(true);
+    const payload: OrgData = {
+      nodes: nodes.map(({ id, position, data }) => ({
+        id, position, data: { label: data.label as string, persona: data.persona as string, fixed: Boolean(data.fixed) },
+      })),
+      edges: edges.map(({ id, source, target, type }) => ({ id, source, target, type })),
+    };
+    const { error } = await supabase.from("plantillas").upsert(
+      { cliente_id: cid, tipo: "organigrama", datos: payload as unknown as Record<string, unknown>, updated_at: new Date().toISOString() },
+      { onConflict: "cliente_id,tipo" }
+    );
+    setSaving(false);
+    if (error) toast.error("Error al guardar");
+    else toast.success("Guardado correctamente");
+  };
 
   if (!clienteId) return <NoClientSelected />;
   if (loading) return <LoadingSpinner />;
 
-  const set = (patch: Partial<Data>) => setData({ ...data, ...patch });
-
-  const addDept = () =>
-    setData({
-      ...data,
-      departamentos: [
-        ...data.departamentos,
-        { id: crypto.randomUUID(), nombre: "", lider: "", roles: [] },
-      ],
-    });
-
-  const updateDept = (id: string, patch: Partial<Departamento>) =>
-    setData({
-      ...data,
-      departamentos: data.departamentos.map((d) =>
-        d.id === id ? { ...d, ...patch } : d
-      ),
-    });
-
-  const removeDept = (id: string) =>
-    setData({ ...data, departamentos: data.departamentos.filter((d) => d.id !== id) });
-
-  const addRole = (id: string) => {
-    const dept = data.departamentos.find((d) => d.id === id);
-    if (!dept) return;
-    updateDept(id, { roles: [...dept.roles, ""] });
-  };
-
-  const updateRole = (deptId: string, i: number, val: string) => {
-    const dept = data.departamentos.find((d) => d.id === deptId);
-    if (!dept) return;
-    const roles = [...dept.roles];
-    roles[i] = val;
-    updateDept(deptId, { roles });
-  };
-
-  const removeRole = (deptId: string, i: number) => {
-    const dept = data.departamentos.find((d) => d.id === deptId);
-    if (!dept) return;
-    updateDept(deptId, { roles: dept.roles.filter((_, idx) => idx !== i) });
-  };
-
   return (
-    <div className="max-w-3xl">
-      <div className="flex items-start justify-between mb-4">
+    <div className="flex flex-col" style={{ height: "calc(100vh - 140px)" }}>
+      <PrintHeader title="Organigrama" subtitle={clienteNombre} />
+
+      {/* Toolbar */}
+      <div className="mb-4 flex items-center justify-between print:hidden">
         <div>
           <h1 className="text-xl font-display font-bold">Organigrama</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{clienteNombre}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{clienteNombre}</p>
         </div>
         <div className="flex items-center gap-2">
           <SavingIndicator saving={saving} />
-          <Button size="sm" onClick={saveNow} disabled={saving}>
+          <FieldHint>Arrastra los nodos para reorganizar. Conecta nodos desde el punto inferior al superior.</FieldHint>
+          <PrintButton />
+          <Button size="sm" variant="outline" onClick={addNode}>
+            <Plus className="h-4 w-4 mr-1.5" /> Añadir caja
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={saving}>
             <Save className="h-4 w-4 mr-1.5" /> Guardar
           </Button>
         </div>
       </div>
 
-      <FieldHint>
-        Solo una persona por función. Diseña la estructura que necesita la empresa, no la que tiene ahora.
-      </FieldHint>
+      <div className="flex-1 rounded-lg border border-border overflow-hidden print:hidden">
+        <ReactFlow
+          nodes={nodesWithCbs}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          nodeTypes={nodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.3 }}
+          className="bg-muted/20"
+        >
+          <Background gap={16} size={1} className="opacity-30" />
+          <Controls />
+        </ReactFlow>
+      </div>
 
-      <div className="mt-6 space-y-4">
-        {/* Visionario */}
-        <div className="rounded-lg border border-primary/30 bg-card p-5">
-          <SectionTitle>Visionario</SectionTitle>
-          <div className="mt-3 space-y-3">
-            <div>
-              <Label className="text-xs">Nombre</Label>
-              <Input
-                className="mt-1"
-                value={data.visionario_nombre}
-                onChange={(e) => set({ visionario_nombre: e.target.value })}
-                placeholder="Nombre completo"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Responsabilidades</Label>
-              <Textarea
-                className="mt-1 min-h-[70px] bg-background"
-                value={data.visionario_responsabilidades}
-                onChange={(e) => set({ visionario_responsabilidades: e.target.value })}
-                placeholder="Visión, innovación, cultura, relaciones clave…"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Integrador */}
-        <div className="rounded-lg border border-primary/30 bg-card p-5">
-          <SectionTitle>Integrador</SectionTitle>
-          <div className="mt-3 space-y-3">
-            <div>
-              <Label className="text-xs">Nombre</Label>
-              <Input
-                className="mt-1"
-                value={data.integrador_nombre}
-                onChange={(e) => set({ integrador_nombre: e.target.value })}
-                placeholder="Nombre completo"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Responsabilidades</Label>
-              <Textarea
-                className="mt-1 min-h-[70px] bg-background"
-                value={data.integrador_responsabilidades}
-                onChange={(e) => set({ integrador_responsabilidades: e.target.value })}
-                placeholder="Ejecución, coordinación, P&L, resolución de conflictos…"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Departamentos */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-foreground">Departamentos</h2>
-            <Button size="sm" variant="outline" onClick={addDept}>
-              <Plus className="h-4 w-4 mr-1.5" /> Departamento
-            </Button>
-          </div>
-
-          {data.departamentos.length === 0 && (
-            <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Añade departamentos para completar el organigrama.
-            </p>
-          )}
-
-          <div className="space-y-3">
-            {data.departamentos.map((dept) => (
-              <div key={dept.id} className="rounded-lg border border-border bg-card p-5">
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 space-y-3">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <Label className="text-xs">Nombre del departamento</Label>
-                        <Input
-                          className="mt-1"
-                          value={dept.nombre}
-                          onChange={(e) => updateDept(dept.id, { nombre: e.target.value })}
-                          placeholder="Ej: Ventas"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Responsable (LDR)</Label>
-                        <Input
-                          className="mt-1"
-                          value={dept.lider}
-                          onChange={(e) => updateDept(dept.id, { lider: e.target.value })}
-                          placeholder="Nombre"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label className="text-xs">Roles dentro del departamento</Label>
-                      <div className="mt-2 space-y-1.5">
-                        {dept.roles.map((role, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <Input
-                              value={role}
-                              onChange={(e) => updateRole(dept.id, i, e.target.value)}
-                              placeholder={`Rol ${i + 1}`}
-                              className="h-8 text-sm"
-                            />
-                            <button onClick={() => removeRole(dept.id, i)} className="text-muted-foreground hover:text-destructive transition-colors shrink-0">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          onClick={() => addRole(dept.id)}
-                          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-                        >
-                          <Plus className="h-3 w-3" /> Añadir rol
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => removeDept(dept.id)}
-                    className="mt-1 text-muted-foreground hover:text-destructive transition-colors shrink-0"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
+      {/* Vista de impresión — tabla simple */}
+      <div className="hidden print:block mt-4">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b-2 border-gray-300">
+              <th className="py-2 text-left font-semibold">Puesto / Área</th>
+              <th className="py-2 text-left font-semibold">Responsable</th>
+            </tr>
+          </thead>
+          <tbody>
+            {nodes.map((n) => (
+              <tr key={n.id} className="border-b border-gray-100">
+                <td className="py-1.5">{n.data.label as string}</td>
+                <td className="py-1.5 text-gray-600">{(n.data.persona as string) || "—"}</td>
+              </tr>
             ))}
-          </div>
-        </div>
+          </tbody>
+        </table>
       </div>
     </div>
   );

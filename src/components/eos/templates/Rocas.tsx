@@ -1,14 +1,8 @@
 import { usePlantilla } from "@/hooks/usePlantilla";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Plus, Trash2, Save } from "lucide-react";
+import { Plus, Trash2, Save, FolderPlus } from "lucide-react";
+import { PrintButton, PrintHeader } from "@/components/ui/print";
 import {
   NoClientSelected,
   LoadingSpinner,
@@ -19,28 +13,119 @@ import {
 
 interface Roca {
   id: string;
-  roca: string;
+  texto: string;
   responsable: string;
-  fecha_limite: string;
-  tipo: "Empresa" | "Equipo" | "";
+  fecha: string;
   completada: boolean;
 }
 
-interface Data {
+interface Departamento {
+  id: string;
+  nombre: string;
   rocas: Roca[];
 }
 
-const DEFAULT: Data = { rocas: [] };
+interface Data {
+  empresa: Roca[];
+  semanales: Roca[];
+  departamentos: Departamento[];
+}
+
+const DEFAULT: Data = { empresa: [], semanales: [], departamentos: [] };
 
 function newRoca(): Roca {
-  return {
-    id: crypto.randomUUID(),
-    roca: "",
-    responsable: "",
-    fecha_limite: "",
-    tipo: "",
-    completada: false,
-  };
+  return { id: `r-${Date.now()}-${Math.random()}`, texto: "", responsable: "", fecha: "", completada: false };
+}
+
+// ─── RocaRow — fuera del componente para evitar re-mount al escribir ──────────
+interface RocaRowProps {
+  roca: Roca;
+  onUpdate: (id: string, patch: Partial<Roca>) => void;
+  onRemove: (id: string) => void;
+}
+
+function RocaRow({ roca, onUpdate, onRemove }: RocaRowProps) {
+  return (
+    <div className={`flex items-center gap-2 py-1.5 ${roca.completada ? "opacity-50" : ""}`}>
+      <button
+        onClick={() => onUpdate(roca.id, { completada: !roca.completada })}
+        className={`h-5 w-5 shrink-0 rounded border-2 transition-colors ${
+          roca.completada
+            ? "border-emerald-500 bg-emerald-500 text-white"
+            : "border-border hover:border-primary/50"
+        }`}
+        title="Marcar completada"
+      >
+        {roca.completada && <span className="flex items-center justify-center text-[10px] leading-none">✓</span>}
+      </button>
+      <Input
+        value={roca.texto}
+        onChange={(e) => onUpdate(roca.id, { texto: e.target.value })}
+        placeholder="Roca…"
+        className={`h-7 flex-1 text-xs ${roca.completada ? "line-through" : ""}`}
+      />
+      <Input
+        value={roca.responsable}
+        onChange={(e) => onUpdate(roca.id, { responsable: e.target.value })}
+        placeholder="Responsable"
+        className="h-7 w-24 text-xs"
+      />
+      <Input
+        type="date"
+        value={roca.fecha}
+        onChange={(e) => onUpdate(roca.id, { fecha: e.target.value })}
+        className="h-7 w-32 text-xs"
+      />
+      <button
+        onClick={() => onRemove(roca.id)}
+        className="shrink-0 text-muted-foreground hover:text-destructive transition-colors print:hidden"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+// ─── RocaColumn — fuera del componente para evitar re-mount ───────────────────
+interface RocaColProps {
+  title: string;
+  hint: string;
+  rocas: Roca[];
+  onAdd: () => void;
+  onUpdate: (id: string, patch: Partial<Roca>) => void;
+  onRemove: (id: string) => void;
+}
+
+function RocaColumn({ title, hint, rocas, onAdd, onUpdate, onRemove }: RocaColProps) {
+  const done = rocas.filter((r) => r.completada).length;
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="text-sm font-display font-semibold text-foreground">{title}</h2>
+        <div className="flex items-center gap-2">
+          {rocas.length > 0 && (
+            <span className="text-xs text-muted-foreground">{done}/{rocas.length}</span>
+          )}
+          <button
+            onClick={onAdd}
+            className="text-primary hover:text-primary/80 transition-colors print:hidden"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <FieldHint>{hint}</FieldHint>
+
+      <div className="mt-3 space-y-0.5 divide-y divide-border">
+        {rocas.length === 0 && (
+          <p className="py-3 text-center text-xs italic text-muted-foreground">Sin rocas.</p>
+        )}
+        {rocas.map((r) => (
+          <RocaRow key={r.id} roca={r} onUpdate={onUpdate} onRemove={onRemove} />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function Rocas({ clienteId, clienteNombre }: NoClientProps) {
@@ -53,28 +138,87 @@ export function Rocas({ clienteId, clienteNombre }: NoClientProps) {
   if (!clienteId) return <NoClientSelected />;
   if (loading) return <LoadingSpinner />;
 
-  const add = () => setData({ rocas: [...data.rocas, newRoca()] });
+  // ── Empresa ────────────────────────────────────────────────────────────────
+  const addEmpresa = () =>
+    setData({ ...data, empresa: [...data.empresa, newRoca()] });
 
-  const update = (id: string, patch: Partial<Roca>) =>
-    setData({ rocas: data.rocas.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
+  const updateEmpresa = (id: string, patch: Partial<Roca>) =>
+    setData({ ...data, empresa: data.empresa.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
 
-  const remove = (id: string) =>
-    setData({ rocas: data.rocas.filter((r) => r.id !== id) });
+  const removeEmpresa = (id: string) =>
+    setData({ ...data, empresa: data.empresa.filter((r) => r.id !== id) });
+
+  // ── Semanales ──────────────────────────────────────────────────────────────
+  const addSemanal = () =>
+    setData({ ...data, semanales: [...data.semanales, newRoca()] });
+
+  const updateSemanal = (id: string, patch: Partial<Roca>) =>
+    setData({ ...data, semanales: data.semanales.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
+
+  const removeSemanal = (id: string) =>
+    setData({ ...data, semanales: data.semanales.filter((r) => r.id !== id) });
+
+  // ── Departamentos ──────────────────────────────────────────────────────────
+  const addDept = () =>
+    setData({
+      ...data,
+      departamentos: [
+        ...data.departamentos,
+        { id: `dept-${Date.now()}`, nombre: "", rocas: [] },
+      ],
+    });
+
+  const removeDept = (id: string) =>
+    setData({ ...data, departamentos: data.departamentos.filter((d) => d.id !== id) });
+
+  const updateDeptNombre = (id: string, nombre: string) =>
+    setData({
+      ...data,
+      departamentos: data.departamentos.map((d) => (d.id === id ? { ...d, nombre } : d)),
+    });
+
+  const addDeptRoca = (deptId: string) =>
+    setData({
+      ...data,
+      departamentos: data.departamentos.map((d) =>
+        d.id === deptId ? { ...d, rocas: [...d.rocas, newRoca()] } : d
+      ),
+    });
+
+  const updateDeptRoca = (deptId: string, rocaId: string, patch: Partial<Roca>) =>
+    setData({
+      ...data,
+      departamentos: data.departamentos.map((d) =>
+        d.id === deptId
+          ? { ...d, rocas: d.rocas.map((r) => (r.id === rocaId ? { ...r, ...patch } : r)) }
+          : d
+      ),
+    });
+
+  const removeDeptRoca = (deptId: string, rocaId: string) =>
+    setData({
+      ...data,
+      departamentos: data.departamentos.map((d) =>
+        d.id === deptId
+          ? { ...d, rocas: d.rocas.filter((r) => r.id !== rocaId) }
+          : d
+      ),
+    });
 
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-start justify-between mb-4">
+    <div className="max-w-6xl">
+      <PrintHeader title="Rocas" subtitle={clienteNombre} />
+
+      <div className="flex items-start justify-between mb-4 print:hidden">
         <div>
           <h1 className="text-xl font-display font-bold">Rocas</h1>
           <p className="mt-1 text-sm text-muted-foreground">{clienteNombre}</p>
         </div>
         <div className="flex items-center gap-2">
           <SavingIndicator saving={saving} />
-          <Button size="sm" variant="outline" onClick={saveNow} disabled={saving}>
+          <PrintButton />
+          <Button size="sm" onClick={saveNow} disabled={saving}>
             <Save className="h-4 w-4 mr-1.5" /> Guardar
-          </Button>
-          <Button size="sm" onClick={add}>
-            <Plus className="h-4 w-4 mr-1.5" /> Añadir Roca
           </Button>
         </div>
       </div>
@@ -83,85 +227,89 @@ export function Rocas({ clienteId, clienteNombre }: NoClientProps) {
         Las Rocas son las 1-7 prioridades más importantes del trimestre. Sin Roca no hay foco.
       </FieldHint>
 
-      <div className="mt-5 rounded-lg border border-border bg-card overflow-hidden">
-        {/* Table header */}
-        <div className="grid grid-cols-[1fr_160px_130px_120px_90px_36px] gap-x-3 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground">
-          <span>Roca</span>
-          <span>Responsable</span>
-          <span>Fecha límite</span>
-          <span>Tipo</span>
-          <span>Estado</span>
-          <span />
+      <div className="mt-5 grid gap-5 md:grid-cols-3">
+        {/* Columna 1: Empresa */}
+        <RocaColumn
+          title="Rocas Empresa"
+          hint="Prioridades de toda la organización este trimestre"
+          rocas={data.empresa}
+          onAdd={addEmpresa}
+          onUpdate={updateEmpresa}
+          onRemove={removeEmpresa}
+        />
+
+        {/* Columna 2: Semanales */}
+        <RocaColumn
+          title="Rocas Semanales"
+          hint="Compromisos y tareas a revisar cada semana"
+          rocas={data.semanales}
+          onAdd={addSemanal}
+          onUpdate={updateSemanal}
+          onRemove={removeSemanal}
+        />
+
+        {/* Columna 3: Departamentos */}
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="mb-1 flex items-center justify-between">
+            <h2 className="text-sm font-display font-semibold">Rocas Departamento</h2>
+            <button
+              onClick={addDept}
+              className="text-primary hover:text-primary/80 transition-colors print:hidden"
+              title="Añadir departamento"
+            >
+              <FolderPlus className="h-4 w-4" />
+            </button>
+          </div>
+          <FieldHint>Rocas específicas por área o departamento</FieldHint>
+
+          <div className="mt-3 space-y-4">
+            {data.departamentos.length === 0 && (
+              <p className="text-xs italic text-muted-foreground">
+                Pulsa + para crear un departamento.
+              </p>
+            )}
+            {data.departamentos.map((dept) => (
+              <div key={dept.id} className="rounded border border-border p-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <Input
+                    value={dept.nombre}
+                    onChange={(e) => updateDeptNombre(dept.id, e.target.value)}
+                    placeholder="Nombre del departamento"
+                    className="h-7 text-xs font-semibold"
+                  />
+                  <button
+                    onClick={() => removeDept(dept.id)}
+                    className="shrink-0 text-muted-foreground hover:text-destructive transition-colors print:hidden"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                <div className="space-y-0.5 divide-y divide-border">
+                  {dept.rocas.length === 0 && (
+                    <p className="py-2 text-center text-xs italic text-muted-foreground">Sin rocas.</p>
+                  )}
+                  {dept.rocas.map((r) => (
+                    <RocaRow
+                      key={r.id}
+                      roca={r}
+                      onUpdate={(id, patch) => updateDeptRoca(dept.id, id, patch)}
+                      onRemove={(id) => removeDeptRoca(dept.id, id)}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => addDeptRoca(dept.id)}
+                  className="mt-2 flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors print:hidden"
+                >
+                  <Plus className="h-3 w-3" /> Añadir roca
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
-
-        {data.rocas.length === 0 && (
-          <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-            No hay Rocas. Pulsa «Añadir Roca» para empezar.
-          </div>
-        )}
-
-        {data.rocas.map((r) => (
-          <div
-            key={r.id}
-            className={`grid grid-cols-[1fr_160px_130px_120px_90px_36px] items-center gap-x-3 border-b border-border px-4 py-2 last:border-0 ${
-              r.completada ? "opacity-60" : ""
-            }`}
-          >
-            <Input
-              value={r.roca}
-              onChange={(e) => update(r.id, { roca: e.target.value })}
-              placeholder="Describe la Roca…"
-              className={`h-8 text-sm ${r.completada ? "line-through" : ""}`}
-            />
-            <Input
-              value={r.responsable}
-              onChange={(e) => update(r.id, { responsable: e.target.value })}
-              placeholder="Nombre"
-              className="h-8 text-sm"
-            />
-            <Input
-              type="date"
-              value={r.fecha_limite}
-              onChange={(e) => update(r.id, { fecha_limite: e.target.value })}
-              className="h-8 text-sm"
-            />
-            <Select
-              value={r.tipo}
-              onValueChange={(v) => update(r.id, { tipo: v as Roca["tipo"] })}
-            >
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Empresa">Empresa</SelectItem>
-                <SelectItem value="Equipo">Equipo</SelectItem>
-              </SelectContent>
-            </Select>
-            <button
-              onClick={() => update(r.id, { completada: !r.completada })}
-              className={`flex items-center justify-center rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
-                r.completada
-                  ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                  : "border-border bg-background text-muted-foreground hover:border-primary/50"
-              }`}
-            >
-              {r.completada ? "✓ Hecha" : "Pendiente"}
-            </button>
-            <button
-              onClick={() => remove(r.id)}
-              className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:text-destructive transition-colors"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ))}
       </div>
-
-      {data.rocas.length > 0 && (
-        <p className="mt-3 text-right text-xs text-muted-foreground">
-          {data.rocas.filter((r) => r.completada).length}/{data.rocas.length} completadas
-        </p>
-      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { usePlantilla } from "@/hooks/usePlantilla";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, Save } from "lucide-react";
+import { PrintButton, PrintHeader } from "@/components/ui/print";
 import {
   NoClientSelected,
   LoadingSpinner,
@@ -152,13 +153,15 @@ export function AnalizadorPersonas({ clienteId, clienteNombre }: NoClientProps) 
 
   return (
     <div className="max-w-full">
-      <div className="flex items-start justify-between mb-4">
+      <PrintHeader title="Analizador de Personas" subtitle={clienteNombre} />
+      <div className="flex items-start justify-between mb-4 print:hidden">
         <div>
           <h1 className="text-xl font-display font-bold">Analizador de Personas</h1>
           <p className="mt-1 text-sm text-muted-foreground">{clienteNombre}</p>
         </div>
         <div className="flex items-center gap-2">
           <SavingIndicator saving={saving} />
+          <PrintButton />
           <Button size="sm" variant="outline" onClick={addColVal}>
             <Plus className="h-4 w-4 mr-1.5" /> Valor
           </Button>

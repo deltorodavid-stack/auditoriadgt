@@ -4,6 +4,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Print styles ─────────────────────────────────────────────────────────── */
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  @page { margin: 1.5cm; }
+
+  /* Sidebar and navigation: hide */
+  aside,
+  header,
+  nav,
+  [data-no-print],
+  .no-print { display: none !important; }
+
+  /* Main content: remove left margin from sidebar */
+  main { margin-left: 0 !important; }
+
+  /* Cards: remove shadow */
+  .shadow-sm,
+  .shadow { box-shadow: none !important; }
+
+  /* Ensure white background */
+  body, html { background: white !important; }
+
+  /* Print header (logo) — shown only in print */
+  .print-header { display: flex !important; }
+}
+
 @layer base {
   :root {
     --background: 210 20% 98%;

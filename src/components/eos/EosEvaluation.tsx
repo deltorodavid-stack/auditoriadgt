@@ -3,9 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Save, RotateCcw } from "lucide-react";
+import { Loader2, Save, RotateCcw, Plus, ChevronLeft, Printer } from "lucide-react";
+import { PrintButton, PrintHeader } from "@/components/ui/print";
 import { toast } from "sonner";
 
+// ── Preguntas y secciones ──────────────────────────────────────────────────────
 const PREGUNTAS = [
   "¿Tenemos visión clara por escrito comunicada y compartida con todos?",
   "¿Los valores medulares están claros y los usamos para contratar, evaluar y despedir?",
@@ -32,11 +34,18 @@ const PREGUNTAS = [
 const SECCIONES = [
   { label: "Visión", from: 0, to: 6 },
   { label: "Personas", from: 7, to: 10 },
-  { label: "Datos", from: 11, to: 14 },  // renamed: Tracción in EOS = Datos aquí
+  { label: "Datos", from: 11, to: 14 },
   { label: "Tracción", from: 15, to: 19 },
 ];
 
 type Respuestas = Record<number, number>;
+
+interface EvaluacionRow {
+  id: string;
+  respuestas: Respuestas;
+  puntuacion: number | null;
+  created_at: string;
+}
 
 function scoreLabel(score: number) {
   if (score >= 80) return { label: "Excelente", color: "bg-emerald-500" };
@@ -45,194 +54,222 @@ function scoreLabel(score: number) {
   return { label: "Crítico", color: "bg-red-500" };
 }
 
-interface Props {
-  clienteId: string | null;
-  clienteNombre: string;
+function calcPuntuacion(resp: Respuestas): number {
+  const vals = Object.values(resp);
+  if (vals.length === 0) return 0;
+  return Math.round((vals.reduce((a, b) => a + b, 0) / (PREGUNTAS.length * 5)) * 100);
 }
 
-export function EosEvaluation({ clienteId, clienteNombre }: Props) {
-  const [respuestas, setRespuestas] = useState<Respuestas>({});
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+interface Props { clienteId: string | null; clienteNombre: string }
 
+export function EosEvaluation({ clienteId, clienteNombre }: Props) {
+  const [historial, setHistorial] = useState<EvaluacionRow[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+  const [view, setView] = useState<"list" | "form">("list");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [respuestas, setRespuestas] = useState<Respuestas>({});
+  const [saving, setSaving] = useState(false);
+
+  // Cargar historial
   useEffect(() => {
-    if (!clienteId) {
-      setRespuestas({});
-      return;
-    }
-    setLoading(true);
+    if (!clienteId) { setHistorial([]); return; }
+    setLoadingList(true);
     supabase
       .from("evaluaciones_eos")
-      .select("respuestas, puntuacion")
+      .select("id, respuestas, puntuacion, created_at")
       .eq("cliente_id", clienteId)
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (!error && data?.respuestas) {
-          setRespuestas(data.respuestas as Respuestas);
-        } else {
-          setRespuestas({});
-        }
-        setLoading(false);
+      .then(({ data }) => {
+        setHistorial((data || []).map((r) => ({ ...r, respuestas: (r.respuestas as Respuestas) || {} })));
+        setLoadingList(false);
       });
   }, [clienteId]);
 
-  const setScore = (idx: number, val: number) => {
-    setRespuestas((prev) => ({ ...prev, [idx]: val }));
-    setSaved(false);
-  };
+  const openNew = () => { setRespuestas({}); setEditingId(null); setView("form"); };
 
-  const answered = Object.keys(respuestas).length;
-  const total = PREGUNTAS.length;
-  const puntuacion = answered === 0
-    ? 0
-    : Math.round(
-        (Object.values(respuestas).reduce((a, b) => a + b, 0) / (total * 5)) * 100
-      );
-
-  const { label: scoreText, color: scoreColor } = scoreLabel(puntuacion);
+  const openExisting = (ev: EvaluacionRow) => { setRespuestas(ev.respuestas); setEditingId(ev.id); setView("form"); };
 
   const handleSave = async () => {
     if (!clienteId) return;
     setSaving(true);
-    const { error } = await supabase.from("evaluaciones_eos").insert({
-      cliente_id: clienteId,
-      respuestas: respuestas as Record<string, unknown>,
-      puntuacion,
-    });
-    setSaving(false);
-    if (error) {
-      toast.error("Error al guardar");
+    const puntuacion = calcPuntuacion(respuestas);
+
+    if (editingId) {
+      // Actualizar evaluación existente
+      const { error } = await supabase
+        .from("evaluaciones_eos")
+        .update({ respuestas: respuestas as Record<string, unknown>, puntuacion })
+        .eq("id", editingId);
+      if (error) { toast.error("Error al guardar"); }
+      else {
+        toast.success("Evaluación actualizada");
+        setHistorial((h) => h.map((e) => e.id === editingId ? { ...e, respuestas, puntuacion } : e));
+      }
     } else {
-      toast.success("Evaluación guardada correctamente");
-      setSaved(true);
+      // Nueva evaluación
+      const { data, error } = await supabase
+        .from("evaluaciones_eos")
+        .insert({ cliente_id: clienteId, respuestas: respuestas as Record<string, unknown>, puntuacion })
+        .select("id, respuestas, puntuacion, created_at")
+        .single();
+      if (error) { toast.error("Error al guardar"); }
+      else if (data) {
+        toast.success("Evaluación guardada");
+        const newRow: EvaluacionRow = { ...data, respuestas: (data.respuestas as Respuestas) || {} };
+        setHistorial((h) => [newRow, ...h]);
+        setEditingId(data.id);
+      }
     }
+    setSaving(false);
   };
 
-  const handleReset = () => {
-    setRespuestas({});
-    setSaved(false);
+  const handleDelete = async (id: string) => {
+    await supabase.from("evaluaciones_eos").delete().eq("id", id);
+    setHistorial((h) => h.filter((e) => e.id !== id));
   };
 
   if (!clienteId) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <p className="text-muted-foreground text-sm">
-          Selecciona un cliente en el menú lateral para ver su evaluación EOS.
-        </p>
+        <p className="text-sm text-muted-foreground">Selecciona un cliente para ver su evaluación EOS.</p>
       </div>
     );
   }
 
-  if (loading) {
+  // ── Vista: lista de evaluaciones ────────────────────────────────────────────
+  if (view === "list") {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="max-w-3xl">
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h1 className="text-xl font-display font-bold">Evaluación Organizacional EOS</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{clienteNombre}</p>
+          </div>
+          <Button size="sm" onClick={openNew}>
+            <Plus className="h-4 w-4 mr-1.5" /> Nueva evaluación
+          </Button>
+        </div>
+
+        {loadingList ? (
+          <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : historial.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border p-12 text-center">
+            <p className="text-sm text-muted-foreground">No hay evaluaciones. Pulsa «Nueva evaluación» para empezar.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {historial.map((ev) => {
+              const p = ev.puntuacion ?? 0;
+              const { label, color } = scoreLabel(p);
+              return (
+                <div key={ev.id} className="flex items-center justify-between rounded-lg border border-border bg-card px-5 py-4">
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {new Date(ev.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" })}
+                      </p>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <Progress value={p} className="h-1.5 w-24" />
+                        <span className="text-xs text-muted-foreground">{p}/100</span>
+                        <Badge className={`${color} text-white text-xs hover:opacity-90`}>{label}</Badge>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => openExisting(ev)}>Ver / Editar</Button>
+                    <button onClick={() => handleDelete(ev.id)} className="text-xs text-muted-foreground hover:text-destructive transition-colors">Eliminar</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
+
+  // ── Vista: formulario ───────────────────────────────────────────────────────
+  const puntuacion = calcPuntuacion(respuestas);
+  const answered = Object.keys(respuestas).length;
+  const { label: scoreText, color: scoreColor } = scoreLabel(puntuacion);
 
   return (
     <div className="max-w-3xl">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-display font-bold text-foreground">
-            Evaluación Organizacional EOS
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">{clienteNombre}</p>
+      <PrintHeader title="Evaluación Organizacional EOS" subtitle={clienteNombre} />
+
+      <div className="flex items-start justify-between mb-6 print:hidden">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setView("list")} className="text-muted-foreground hover:text-foreground transition-colors">
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <div>
+            <h1 className="text-xl font-display font-bold">
+              {editingId ? "Editar evaluación" : "Nueva evaluación"}
+            </h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">{clienteNombre}</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={handleReset}>
-            <RotateCcw className="h-4 w-4 mr-1.5" />
-            Reiniciar
+          {saving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          <PrintButton />
+          <Button variant="ghost" size="sm" onClick={() => { setRespuestas({}); }}>
+            <RotateCcw className="h-4 w-4 mr-1.5" /> Reiniciar
           </Button>
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={saving || answered < total}
-          >
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-            ) : (
-              <Save className="h-4 w-4 mr-1.5" />
-            )}
-            Guardar
+          <Button size="sm" onClick={handleSave} disabled={saving || answered < PREGUNTAS.length}>
+            <Save className="h-4 w-4 mr-1.5" /> Guardar
           </Button>
         </div>
       </div>
 
-      {/* Score summary */}
+      {/* Puntuación */}
       {answered > 0 && (
         <div className="mb-8 rounded-lg border border-border bg-card p-5">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-foreground">
-              Puntuación actual
-            </span>
+            <span className="text-sm font-medium text-foreground">Puntuación actual</span>
             <div className="flex items-center gap-2">
-              <Badge
-                className={`${scoreColor} text-white hover:opacity-90`}
-              >
-                {scoreText}
-              </Badge>
-              <span className="text-2xl font-display font-bold text-foreground">
-                {puntuacion}/100
-              </span>
+              <Badge className={`${scoreColor} text-white hover:opacity-90`}>{scoreText}</Badge>
+              <span className="text-2xl font-display font-bold text-foreground">{puntuacion}/100</span>
             </div>
           </div>
           <Progress value={puntuacion} className="h-2" />
-          <p className="mt-2 text-xs text-muted-foreground">
-            {answered} de {total} preguntas respondidas
-          </p>
+          <p className="mt-2 text-xs text-muted-foreground">{answered} de {PREGUNTAS.length} preguntas respondidas</p>
         </div>
       )}
 
-      {/* Questions by section */}
+      {/* Preguntas */}
       <div className="space-y-8">
         {SECCIONES.map((sec) => (
           <div key={sec.label}>
-            <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              {sec.label}
-            </h2>
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">{sec.label}</h2>
             <div className="space-y-3">
               {PREGUNTAS.slice(sec.from, sec.to + 1).map((pregunta, relIdx) => {
                 const idx = sec.from + relIdx;
                 const valor = respuestas[idx];
                 return (
-                  <div
-                    key={idx}
-                    className="rounded-lg border border-border bg-card p-4"
-                  >
+                  <div key={idx} className="rounded-lg border border-border bg-card p-4">
                     <p className="mb-3 text-sm font-medium text-foreground">
-                      <span className="mr-2 text-xs text-muted-foreground">
-                        {idx + 1}.
-                      </span>
+                      <span className="mr-2 text-xs text-muted-foreground">{idx + 1}.</span>
                       {pregunta}
                     </p>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 print:hidden">
                       {[1, 2, 3, 4, 5].map((v) => (
                         <button
                           key={v}
-                          onClick={() => setScore(idx, v)}
-                          className={`flex h-9 w-9 items-center justify-center rounded-md border text-sm font-semibold transition-all ${
-                            valor === v
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
-                          }`}
+                          onClick={() => setRespuestas((prev) => ({ ...prev, [idx]: v }))}
+                          className={`flex h-9 w-9 items-center justify-center rounded-md border text-sm font-semibold transition-all ${valor === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"}`}
                         >
                           {v}
                         </button>
                       ))}
-                      <span className="ml-2 flex items-center text-xs text-muted-foreground">
-                        {valor === 1 && "Muy bajo"}
-                        {valor === 2 && "Bajo"}
-                        {valor === 3 && "Regular"}
-                        {valor === 4 && "Bueno"}
-                        {valor === 5 && "Excelente"}
-                      </span>
+                      {valor !== undefined && (
+                        <span className="ml-2 flex items-center text-xs text-muted-foreground">
+                          {["", "Muy bajo", "Bajo", "Regular", "Bueno", "Excelente"][valor]}
+                        </span>
+                      )}
                     </div>
+                    {valor !== undefined && (
+                      <p className="hidden text-sm print:block"><strong>{valor}/5</strong> — {["", "Muy bajo", "Bajo", "Regular", "Bueno", "Excelente"][valor]}</p>
+                    )}
                   </div>
                 );
               })}
@@ -241,15 +278,10 @@ export function EosEvaluation({ clienteId, clienteNombre }: Props) {
         ))}
       </div>
 
-      {/* Bottom save */}
-      {answered === total && !saved && (
-        <div className="mt-8 flex justify-end">
+      {answered === PREGUNTAS.length && (
+        <div className="mt-8 flex justify-end print:hidden">
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-            ) : (
-              <Save className="h-4 w-4 mr-1.5" />
-            )}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
             Guardar evaluación
           </Button>
         </div>

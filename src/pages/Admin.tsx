@@ -81,7 +81,7 @@ export default function Admin() {
         onClose={() => setMobileOpen(false)}
       />
 
-      <main className="flex-1 md:ml-64 flex flex-col">
+      <main className="flex-1 md:ml-64 print:ml-0 flex flex-col">
         {/* Mobile header */}
         <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-3 md:hidden">
           <Button
