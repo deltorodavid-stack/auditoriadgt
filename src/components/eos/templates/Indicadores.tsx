@@ -39,21 +39,24 @@ const DEFAULT_ROWS: string[] = [
   "Tareas atrasadas",
 ];
 
-const DEFAULT: Data = {
-  filas: DEFAULT_ROWS.map((nombre) => ({
-    id: crypto.randomUUID(),
-    responsable: "",
-    indicador: nombre,
-    meta: "",
-    meses: Object.fromEntries(MESES.map((m) => [m, ""])),
-  })),
-};
+// Factory function — nunca a nivel de módulo para evitar errores de inicialización
+function makeDefaultData(): Data {
+  return {
+    filas: DEFAULT_ROWS.map((nombre, i) => ({
+      id: `default-${i}-${Date.now()}`,
+      responsable: "",
+      indicador: nombre,
+      meta: "",
+      meses: Object.fromEntries(MESES.map((m) => [m, ""])),
+    })),
+  };
+}
 
 export function Indicadores({ clienteId, clienteNombre }: NoClientProps) {
   const { data, setData, saveNow, saving, loading } = usePlantilla<Data>(
     clienteId,
     "indicadores",
-    DEFAULT
+    makeDefaultData()
   );
 
   if (!clienteId) return <NoClientSelected />;

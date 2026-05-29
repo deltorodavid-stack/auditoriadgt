@@ -140,9 +140,9 @@ export function AdminSidebar({
             Cliente activo
           </p>
           <Select
-            value={selectedClientId ?? ""}
+            value={selectedClientId ?? "__todos__"}
             onValueChange={(val) => {
-              if (val === "") {
+              if (val === "__todos__") {
                 onClientChange(null, "");
               } else {
                 const c = clientes.find((c) => c.id === val);
@@ -154,7 +154,7 @@ export function AdminSidebar({
               <SelectValue placeholder="Seleccionar cliente…" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">— Todos —</SelectItem>
+              <SelectItem value="__todos__">— Todos —</SelectItem>
               {clientes.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.nombre_empresa}
