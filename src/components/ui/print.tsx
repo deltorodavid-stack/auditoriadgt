@@ -1,18 +1,22 @@
 import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-/** Botón visible solo fuera de impresión */
+/** Botón visible solo fuera de impresión. Incluye aviso sobre cabeceras del navegador. */
 export function PrintButton({ className = "" }: { className?: string }) {
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={() => window.print()}
-      className={`print:hidden ${className}`}
-    >
-      <Printer className="mr-1.5 h-4 w-4" />
-      Imprimir / PDF
-    </Button>
+    <div className={`flex flex-col items-end print:hidden ${className}`}>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => window.print()}
+      >
+        <Printer className="mr-1.5 h-4 w-4" />
+        Imprimir / PDF
+      </Button>
+      <p className="mt-0.5 text-[10px] text-muted-foreground/60 leading-tight text-right">
+        En el diálogo de impresión, desactiva «Encabezados y pies»
+      </p>
+    </div>
   );
 }
 

@@ -197,6 +197,17 @@ export function EosEvaluation({ clienteId, clienteNombre }: Props) {
     <div className="max-w-3xl">
       <PrintHeader title="Evaluación Organizacional EOS" subtitle={clienteNombre} />
 
+      {/* Puntuación — solo impresión, siempre visible */}
+      <div className="hidden print:flex items-center justify-between mb-6 rounded-lg border border-gray-200 p-4">
+        <span className="text-sm font-medium text-gray-700">Puntuación total</span>
+        <div className="flex items-center gap-3">
+          <span className={`rounded-full px-3 py-0.5 text-xs font-semibold text-white ${scoreColor}`}>
+            {scoreText}
+          </span>
+          <span className="text-2xl font-bold text-gray-900">{puntuacion}/100</span>
+        </div>
+      </div>
+
       <div className="flex items-start justify-between mb-6 print:hidden">
         <div className="flex items-center gap-3">
           <button onClick={() => setView("list")} className="text-muted-foreground hover:text-foreground transition-colors">

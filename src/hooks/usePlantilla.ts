@@ -37,7 +37,8 @@ export function usePlantilla<T>(
         if (error) {
           console.error("Error loading plantilla:", error.message);
         } else if (row?.datos) {
-          const loaded = row.datos as T;
+          // Merge with defaults so newly-added fields always have a value
+          const loaded = { ...defaultData, ...(row.datos as T) };
           setDataState(loaded);
           dataRef.current = loaded;
         } else {
