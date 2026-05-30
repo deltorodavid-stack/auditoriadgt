@@ -5,31 +5,23 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronDown, ChevronRight, Save, Trash2, Printer } from "lucide-react";
-import { PrintLayout, PrintSection, PrintField, PrintRow } from "@/components/ui/PrintLayout";
-import { PrintButton } from "@/components/ui/print";
+import { Plus, ChevronDown, ChevronRight, Save, Trash2, Eye } from "lucide-react";
 import {
   NoClientSelected, LoadingSpinner, SavingIndicator,
   SectionTitle, FieldHint, type NoClientProps,
 } from "./shared";
+import {
+  DocumentViewer, DocSection, DocField, DocRow,
+  makeMdFilename,
+} from "@/components/ui/DocumentViewer";
 
 type EstadoReunion = "preparada" | "en_curso" | "completada";
 
 interface Reunion {
-  id: string;
-  estado: EstadoReunion;
-  fecha: string;
-  participantes: string;
-  a_transicion: string;
-  a_revision_anio: string;
-  a_salud_equipo: string;
-  a_dafo: string;
-  a_revision_vto: string;
-  a_rocas: string;
-  a_ids: string;
-  a_conclusion: string;
-  acta: string;
-  valoracion: number | null;
+  id: string; estado: EstadoReunion; fecha: string; participantes: string;
+  a_transicion: string; a_revision_anio: string; a_salud_equipo: string; a_dafo: string;
+  a_revision_vto: string; a_rocas: string; a_ids: string; a_conclusion: string;
+  acta: string; valoracion: number | null;
 }
 
 interface Data { reuniones: Reunion[] }
@@ -43,9 +35,9 @@ const DIA1: { key: keyof Reunion; label: string; hint: string }[] = [
   { key: "a_revision_vto",  label: "Revisión del V/TO", hint: "Actualizar la visión para el próximo año si es necesario" },
 ];
 const DIA2: { key: keyof Reunion; label: string; hint: string }[] = [
-  { key: "a_rocas",     label: "Rocas del Próximo Trimestre", hint: "1-7 Rocas por persona para el próximo trimestre" },
-  { key: "a_ids",       label: "IDS Asuntos Clave",           hint: "Identificar, Debatir, Solucionar los asuntos más importantes" },
-  { key: "a_conclusion",label: "Conclusión",                  hint: "Repasar tareas, comunicar, valorar la reunión del 1 al 10" },
+  { key: "a_rocas",      label: "Rocas del Próximo Trimestre", hint: "1-7 Rocas por persona para el próximo trimestre" },
+  { key: "a_ids",        label: "IDS Asuntos Clave",           hint: "Identificar, Debatir, Solucionar los asuntos más importantes" },
+  { key: "a_conclusion", label: "Conclusión",                  hint: "Repasar tareas, comunicar, valorar la reunión del 1 al 10" },
 ];
 
 function newReunion(): Reunion {
@@ -53,8 +45,7 @@ function newReunion(): Reunion {
     id: `ra-${Date.now()}`, estado: "preparada",
     fecha: new Date().toISOString().split("T")[0], participantes: "",
     a_transicion: "", a_revision_anio: "", a_salud_equipo: "", a_dafo: "", a_revision_vto: "",
-    a_rocas: "", a_ids: "", a_conclusion: "",
-    acta: "", valoracion: null,
+    a_rocas: "", a_ids: "", a_conclusion: "", acta: "", valoracion: null,
   };
 }
 
@@ -69,9 +60,22 @@ const BADGE: Record<EstadoReunion, { label: string; cls: string }> = {
   completada: { label: "Completada", cls: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" },
 };
 
+function generateMd(r: Reunion, clienteNombre: string): string {
+  const lines = [`# Reunión Anual (2 días) — ${clienteNombre}`, `\n**Fecha:** ${formatFecha(r.fecha)}`];
+  if (r.participantes) lines.push(`**Participantes:** ${r.participantes}`);
+  lines.push(`**Estado:** ${BADGE[r.estado]?.label}`, `\n## Día 1 — Revisión y Visión`);
+  for (const { key, label } of DIA1) { if (r[key]) lines.push(`\n**${label}**\n${r[key] as string}`); }
+  lines.push(`\n## Día 2 — Planificación y Resolución`);
+  for (const { key, label } of DIA2) { if (r[key]) lines.push(`\n**${label}**\n${r[key] as string}`); }
+  if (r.acta) lines.push(`\n## Acta\n${r.acta}`);
+  if (r.valoracion !== null) lines.push(`\n**Valoración:** ${r.valoracion}/10`);
+  return lines.join("\n");
+}
+
 export function ReunionAnual({ clienteId, clienteNombre }: NoClientProps) {
   const { data, setData, saveNow, saving, loading } = usePlantilla<Data>(clienteId, "reunion_anual", DEFAULT);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   if (!clienteId) return <NoClientSelected />;
   if (loading) return <LoadingSpinner />;
@@ -80,11 +84,32 @@ export function ReunionAnual({ clienteId, clienteNombre }: NoClientProps) {
   const update = (id: string, patch: Partial<Reunion>) =>
     setData({ reuniones: data.reuniones.map((r) => r.id === id ? { ...r, ...patch } : r) });
   const remove = (id: string) => { setData({ reuniones: data.reuniones.filter((r) => r.id !== id) }); if (expandedId === id) setExpandedId(null); };
-  const handlePrint = (r: Reunion) => { setExpandedId(r.id); setTimeout(() => window.print(), 300); };
+
+  if (viewingId) {
+    const r = data.reuniones.find((x) => x.id === viewingId);
+    if (r) return (
+      <DocumentViewer title="Reunión Anual (2 días)" clienteNombre={clienteNombre}
+        date={formatFecha(r.fecha)} onClose={() => setViewingId(null)}
+        mdContent={generateMd(r, clienteNombre)} mdFilename={makeMdFilename("reunion-anual", clienteNombre, r.fecha)}>
+        <DocSection label="Reunión">
+          <DocRow label="Participantes" value={r.participantes} />
+          <DocRow label="Estado" value={BADGE[r.estado]?.label} />
+          {r.valoracion !== null && <DocRow label="Valoración" value={`${r.valoracion}/10`} />}
+        </DocSection>
+        <DocSection label="Día 1 — Revisión y Visión">
+          {DIA1.map(({ key, label }) => (r[key] as string) ? <DocField key={key} label={label} value={r[key] as string} /> : null)}
+        </DocSection>
+        <DocSection label="Día 2 — Planificación y Resolución">
+          {DIA2.map(({ key, label }) => (r[key] as string) ? <DocField key={key} label={label} value={r[key] as string} /> : null)}
+        </DocSection>
+        {r.acta && <DocSection label="Acta"><DocField label="" value={r.acta} /></DocSection>}
+      </DocumentViewer>
+    );
+  }
 
   return (
     <div className="max-w-3xl">
-      <div className="flex items-start justify-between mb-6 print:hidden">
+      <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-xl font-display font-bold">Reunión Anual (2 días)</h1>
           <p className="mt-1 text-sm text-muted-foreground">{clienteNombre}</p>
@@ -97,7 +122,7 @@ export function ReunionAnual({ clienteId, clienteNombre }: NoClientProps) {
       </div>
 
       {data.reuniones.length === 0 && (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center print:hidden">
+        <div className="rounded-lg border border-dashed border-border p-10 text-center">
           <p className="text-sm text-muted-foreground">No hay reuniones anuales registradas.</p>
         </div>
       )}
@@ -106,10 +131,9 @@ export function ReunionAnual({ clienteId, clienteNombre }: NoClientProps) {
         {data.reuniones.map((r) => {
           const isOpen = expandedId === r.id;
           const badge = BADGE[r.estado] ?? BADGE.preparada;
-
           return (
             <div key={r.id} className="rounded-lg border border-border bg-card overflow-hidden">
-              <div className="flex cursor-pointer items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors print:hidden"
+              <div className="flex cursor-pointer items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors"
                 onClick={() => setExpandedId(isOpen ? null : r.id)}>
                 <div className="flex items-center gap-3">
                   {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
@@ -118,107 +142,64 @@ export function ReunionAnual({ clienteId, clienteNombre }: NoClientProps) {
                   {r.valoracion !== null && <Badge variant="secondary">{r.valoracion}/10</Badge>}
                 </div>
                 <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => handlePrint(r)} className="rounded p-1.5 text-muted-foreground hover:text-foreground transition-colors"><Printer className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => setViewingId(r.id)} className="rounded p-1.5 text-muted-foreground hover:text-foreground transition-colors" title="Ver documento"><Eye className="h-3.5 w-3.5" /></button>
                   <button onClick={() => remove(r.id)} className="rounded p-1.5 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>
               </div>
 
               {isOpen && (
-                <div className="border-t border-border">
-                  <div className="px-5 py-5 space-y-6 print:hidden">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Estado:</span>
-                        {(["preparada", "en_curso", "completada"] as EstadoReunion[]).map((s) => (
-                          <button key={s} onClick={() => update(r.id, { estado: s })}
-                            className={`rounded border px-2 py-0.5 text-xs transition-colors ${
-                              r.estado === s
-                                ? s === "preparada" ? "border-border bg-muted font-medium"
-                                  : s === "en_curso" ? "border-amber-300 bg-amber-100 font-medium text-amber-800"
-                                  : "border-emerald-300 bg-emerald-100 font-medium text-emerald-800"
-                                : "border-border text-muted-foreground hover:border-primary/50"
-                            }`}>
-                            {BADGE[s].label}
-                          </button>
-                        ))}
-                      </div>
-                      <PrintButton />
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div><Label className="text-xs">Fecha inicio</Label><Input type="date" className="mt-1" value={r.fecha} onChange={(e) => update(r.id, { fecha: e.target.value })} /></div>
-                      <div><Label className="text-xs">Participantes</Label><Input className="mt-1" value={r.participantes} onChange={(e) => update(r.id, { participantes: e.target.value })} /></div>
-                    </div>
-
-                    {/* Día 1 */}
-                    <div>
-                      <h3 className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-primary">
-                        <span className="rounded bg-primary px-1.5 py-0.5 text-primary-foreground">Día 1</span>
-                        Revisión y Visión
-                      </h3>
-                      <div className="space-y-4">
-                        {DIA1.map(({ key, label, hint }) => (
-                          <div key={key}>
-                            <SectionTitle>{label}</SectionTitle><FieldHint>{hint}</FieldHint>
-                            <Textarea className="mt-2 min-h-[70px] bg-background" value={(r[key] as string) || ""}
-                              onChange={(e) => update(r.id, { [key]: e.target.value })} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Día 2 */}
-                    <div>
-                      <h3 className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-primary">
-                        <span className="rounded bg-primary px-1.5 py-0.5 text-primary-foreground">Día 2</span>
-                        Planificación y Resolución
-                      </h3>
-                      <div className="space-y-4">
-                        {DIA2.map(({ key, label, hint }) => (
-                          <div key={key}>
-                            <SectionTitle>{label}</SectionTitle><FieldHint>{hint}</FieldHint>
-                            <Textarea className="mt-2 min-h-[70px] bg-background" value={(r[key] as string) || ""}
-                              onChange={(e) => update(r.id, { [key]: e.target.value })} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="border-t border-border pt-5">
-                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-primary">Acta de la reunión</p>
-                      <FieldHint>Resumen de lo que ocurrió. Puedes dictar con el micrófono del teclado.</FieldHint>
-                      <Textarea className="mt-2 min-h-[160px] bg-background" value={r.acta || ""}
-                        onChange={(e) => update(r.id, { acta: e.target.value })} placeholder="Escribe o dicta el acta de los 2 días…" />
-                    </div>
-
-                    <div>
-                      <SectionTitle>Valoración de la reunión</SectionTitle>
-                      <FieldHint>Puntuación del 1 al 10</FieldHint>
-                      <div className="mt-2 flex gap-2">
-                        {Array.from({ length: 10 }, (_, i) => i + 1).map((v) => (
-                          <button key={v} onClick={() => update(r.id, { valoracion: v })}
-                            className={`h-9 w-9 rounded-md border text-sm font-semibold transition-all ${r.valoracion === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:border-primary/50"}`}>
-                            {v}
-                          </button>
-                        ))}
-                      </div>
+                <div className="border-t border-border px-5 py-5 space-y-6">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Estado:</span>
+                    {(["preparada", "en_curso", "completada"] as EstadoReunion[]).map((s) => (
+                      <button key={s} onClick={() => update(r.id, { estado: s })}
+                        className={`rounded border px-2 py-0.5 text-xs transition-colors ${r.estado === s ? s === "preparada" ? "border-border bg-muted font-medium" : s === "en_curso" ? "border-amber-300 bg-amber-100 font-medium text-amber-800" : "border-emerald-300 bg-emerald-100 font-medium text-emerald-800" : "border-border text-muted-foreground hover:border-primary/50"}`}>
+                        {BADGE[s].label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div><Label className="text-xs">Fecha inicio</Label><Input type="date" className="mt-1" value={r.fecha} onChange={(e) => update(r.id, { fecha: e.target.value })} /></div>
+                    <div><Label className="text-xs">Participantes</Label><Input className="mt-1" value={r.participantes} onChange={(e) => update(r.id, { participantes: e.target.value })} /></div>
+                  </div>
+                  <div>
+                    <h3 className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-primary">
+                      <span className="rounded bg-primary px-1.5 py-0.5 text-primary-foreground">Día 1</span>Revisión y Visión
+                    </h3>
+                    <div className="space-y-4">
+                      {DIA1.map(({ key, label, hint }) => (
+                        <div key={key}><SectionTitle>{label}</SectionTitle><FieldHint>{hint}</FieldHint>
+                          <Textarea className="mt-2 min-h-[70px] bg-background" value={(r[key] as string) || ""} onChange={(e) => update(r.id, { [key]: e.target.value })} /></div>
+                      ))}
                     </div>
                   </div>
-
-                  <PrintLayout title="Reunión Anual (2 días)" clienteNombre={clienteNombre} date={formatFecha(r.fecha)}>
-                    <PrintSection label="Reunión">
-                      <PrintRow label="Participantes" value={r.participantes} />
-                      <PrintRow label="Estado" value={BADGE[r.estado]?.label} />
-                      {r.valoracion !== null && <PrintRow label="Valoración" value={`${r.valoracion}/10`} />}
-                    </PrintSection>
-                    <PrintSection label="Día 1 — Revisión y Visión">
-                      {DIA1.map(({ key, label }) => (r[key] as string) ? <PrintField key={key} label={label} value={r[key] as string} /> : null)}
-                    </PrintSection>
-                    <PrintSection label="Día 2 — Planificación y Resolución">
-                      {DIA2.map(({ key, label }) => (r[key] as string) ? <PrintField key={key} label={label} value={r[key] as string} /> : null)}
-                    </PrintSection>
-                    {r.acta && <PrintSection label="Acta"><PrintField label="" value={r.acta} /></PrintSection>}
-                  </PrintLayout>
+                  <div>
+                    <h3 className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-primary">
+                      <span className="rounded bg-primary px-1.5 py-0.5 text-primary-foreground">Día 2</span>Planificación y Resolución
+                    </h3>
+                    <div className="space-y-4">
+                      {DIA2.map(({ key, label, hint }) => (
+                        <div key={key}><SectionTitle>{label}</SectionTitle><FieldHint>{hint}</FieldHint>
+                          <Textarea className="mt-2 min-h-[70px] bg-background" value={(r[key] as string) || ""} onChange={(e) => update(r.id, { [key]: e.target.value })} /></div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="border-t border-border pt-5">
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-primary">Acta de la reunión</p>
+                    <FieldHint>Resumen de lo que ocurrió. Puedes dictar con el micrófono del teclado.</FieldHint>
+                    <Textarea className="mt-2 min-h-[160px] bg-background" value={r.acta || ""} onChange={(e) => update(r.id, { acta: e.target.value })} placeholder="Escribe o dicta el acta de los 2 días…" />
+                  </div>
+                  <div>
+                    <SectionTitle>Valoración</SectionTitle><FieldHint>Puntuación del 1 al 10</FieldHint>
+                    <div className="mt-2 flex gap-2">
+                      {Array.from({ length: 10 }, (_, i) => i + 1).map((v) => (
+                        <button key={v} onClick={() => update(r.id, { valoracion: v })}
+                          className={`h-9 w-9 rounded-md border text-sm font-semibold transition-all ${r.valoracion === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:border-primary/50"}`}>
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

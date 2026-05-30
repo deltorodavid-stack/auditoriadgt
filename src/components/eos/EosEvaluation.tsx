@@ -3,11 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Save, RotateCcw, Plus, ChevronLeft, Printer } from "lucide-react";
-import { PrintButton, PrintHeader } from "@/components/ui/print";
+import { Loader2, Save, RotateCcw, Plus, ChevronLeft, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { DocumentViewer, DocSection, DocField, makeMdFilename } from "@/components/ui/DocumentViewer";
 
-// ── Preguntas y secciones ──────────────────────────────────────────────────────
 const PREGUNTAS = [
   "¿Tenemos visión clara por escrito comunicada y compartida con todos?",
   "¿Los valores medulares están claros y los usamos para contratar, evaluar y despedir?",
@@ -39,13 +38,7 @@ const SECCIONES = [
 ];
 
 type Respuestas = Record<number, number>;
-
-interface EvaluacionRow {
-  id: string;
-  respuestas: Respuestas;
-  puntuacion: number | null;
-  created_at: string;
-}
+interface EvaluacionRow { id: string; respuestas: Respuestas; puntuacion: number | null; created_at: string }
 
 function scoreLabel(score: number) {
   if (score >= 80) return { label: "Excelente", color: "bg-emerald-500" };
@@ -60,6 +53,27 @@ function calcPuntuacion(resp: Respuestas): number {
   return Math.round((vals.reduce((a, b) => a + b, 0) / (PREGUNTAS.length * 5)) * 100);
 }
 
+const LABELS = ["", "Muy bajo", "Bajo", "Regular", "Bueno", "Excelente"];
+
+function generateMd(respuestas: Respuestas, clienteNombre: string, fecha: string): string {
+  const puntuacion = calcPuntuacion(respuestas);
+  const { label } = scoreLabel(puntuacion);
+  const lines = [
+    `# Evaluación Organizacional EOS — ${clienteNombre}`,
+    `\n**Fecha:** ${fecha}`,
+    `**Puntuación:** ${puntuacion}/100 — ${label}`,
+  ];
+  for (const sec of SECCIONES) {
+    lines.push(`\n## ${sec.label}`);
+    for (let i = sec.from; i <= sec.to; i++) {
+      const v = respuestas[i];
+      lines.push(`${i + 1}. ${PREGUNTAS[i]}`);
+      lines.push(`   **Respuesta:** ${v !== undefined ? `${v}/5 — ${LABELS[v]}` : "Sin responder"}`);
+    }
+  }
+  return lines.join("\n");
+}
+
 interface Props { clienteId: string | null; clienteNombre: string }
 
 export function EosEvaluation({ clienteId, clienteNombre }: Props) {
@@ -67,58 +81,37 @@ export function EosEvaluation({ clienteId, clienteNombre }: Props) {
   const [loadingList, setLoadingList] = useState(false);
   const [view, setView] = useState<"list" | "form">("list");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingDate, setEditingDate] = useState<string>("");
   const [respuestas, setRespuestas] = useState<Respuestas>({});
   const [saving, setSaving] = useState(false);
+  const [viewingEv, setViewingEv] = useState<EvaluacionRow | null>(null);
 
-  // Cargar historial
   useEffect(() => {
     if (!clienteId) { setHistorial([]); return; }
     setLoadingList(true);
-    supabase
-      .from("evaluaciones_eos")
-      .select("id, respuestas, puntuacion, created_at")
-      .eq("cliente_id", clienteId)
-      .order("created_at", { ascending: false })
+    supabase.from("evaluaciones_eos").select("id, respuestas, puntuacion, created_at")
+      .eq("cliente_id", clienteId).order("created_at", { ascending: false })
       .then(({ data }) => {
         setHistorial((data || []).map((r) => ({ ...r, respuestas: (r.respuestas as Respuestas) || {} })));
         setLoadingList(false);
       });
   }, [clienteId]);
 
-  const openNew = () => { setRespuestas({}); setEditingId(null); setView("form"); };
-
-  const openExisting = (ev: EvaluacionRow) => { setRespuestas(ev.respuestas); setEditingId(ev.id); setView("form"); };
+  const openNew = () => { setRespuestas({}); setEditingId(null); setEditingDate(""); setView("form"); };
+  const openExisting = (ev: EvaluacionRow) => { setRespuestas(ev.respuestas); setEditingId(ev.id); setEditingDate(ev.created_at); setView("form"); };
 
   const handleSave = async () => {
     if (!clienteId) return;
     setSaving(true);
     const puntuacion = calcPuntuacion(respuestas);
-
     if (editingId) {
-      // Actualizar evaluación existente
-      const { error } = await supabase
-        .from("evaluaciones_eos")
-        .update({ respuestas: respuestas as Record<string, unknown>, puntuacion })
-        .eq("id", editingId);
-      if (error) { toast.error("Error al guardar"); }
-      else {
-        toast.success("Evaluación actualizada");
-        setHistorial((h) => h.map((e) => e.id === editingId ? { ...e, respuestas, puntuacion } : e));
-      }
+      const { error } = await supabase.from("evaluaciones_eos").update({ respuestas: respuestas as Record<string, unknown>, puntuacion }).eq("id", editingId);
+      if (error) toast.error("Error al guardar");
+      else { toast.success("Evaluación actualizada"); setHistorial((h) => h.map((e) => e.id === editingId ? { ...e, respuestas, puntuacion } : e)); }
     } else {
-      // Nueva evaluación
-      const { data, error } = await supabase
-        .from("evaluaciones_eos")
-        .insert({ cliente_id: clienteId, respuestas: respuestas as Record<string, unknown>, puntuacion })
-        .select("id, respuestas, puntuacion, created_at")
-        .single();
-      if (error) { toast.error("Error al guardar"); }
-      else if (data) {
-        toast.success("Evaluación guardada");
-        const newRow: EvaluacionRow = { ...data, respuestas: (data.respuestas as Respuestas) || {} };
-        setHistorial((h) => [newRow, ...h]);
-        setEditingId(data.id);
-      }
+      const { data, error } = await supabase.from("evaluaciones_eos").insert({ cliente_id: clienteId, respuestas: respuestas as Record<string, unknown>, puntuacion }).select("id, respuestas, puntuacion, created_at").single();
+      if (error) toast.error("Error al guardar");
+      else if (data) { toast.success("Evaluación guardada"); const newRow: EvaluacionRow = { ...data, respuestas: (data.respuestas as Respuestas) || {} }; setHistorial((h) => [newRow, ...h]); setEditingId(data.id); setEditingDate(data.created_at); }
     }
     setSaving(false);
   };
@@ -128,15 +121,43 @@ export function EosEvaluation({ clienteId, clienteNombre }: Props) {
     setHistorial((h) => h.filter((e) => e.id !== id));
   };
 
-  if (!clienteId) {
+  if (!clienteId) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <p className="text-sm text-muted-foreground">Selecciona un cliente para ver su evaluación EOS.</p>
+    </div>
+  );
+
+  // Vista documento
+  if (viewingEv) {
+    const fechaFmt = new Date(viewingEv.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" });
+    const puntuacion = viewingEv.puntuacion ?? calcPuntuacion(viewingEv.respuestas);
+    const { label: scoreText, color: scoreColor } = scoreLabel(puntuacion);
+    const dateSlug = viewingEv.created_at.split("T")[0];
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <p className="text-sm text-muted-foreground">Selecciona un cliente para ver su evaluación EOS.</p>
-      </div>
+      <DocumentViewer title="Evaluación Organizacional EOS" clienteNombre={clienteNombre}
+        date={fechaFmt} onClose={() => setViewingEv(null)}
+        mdContent={generateMd(viewingEv.respuestas, clienteNombre, fechaFmt)}
+        mdFilename={makeMdFilename("evaluacion-eos", clienteNombre, dateSlug)}>
+        <DocSection label="Resultado">
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "16px", padding: "12px 16px", background: "#f9fafb", borderRadius: "8px", border: "1px solid #e5e7eb" }}>
+            <span style={{ fontSize: "32px", fontWeight: "800", color: "#111827" }}>{puntuacion}/100</span>
+            <span style={{ fontSize: "13px", fontWeight: "600", padding: "3px 10px", borderRadius: "999px", color: "white", background: scoreColor.replace("bg-emerald-500","#10b981").replace("bg-yellow-500","#eab308").replace("bg-orange-500","#f97316").replace("bg-red-500","#ef4444") }}>{scoreText}</span>
+          </div>
+        </DocSection>
+        {SECCIONES.map((sec) => (
+          <DocSection key={sec.label} label={sec.label}>
+            {PREGUNTAS.slice(sec.from, sec.to + 1).map((pregunta, relIdx) => {
+              const idx = sec.from + relIdx;
+              const v = viewingEv.respuestas[idx];
+              return <DocField key={idx} label={`${idx + 1}. ${pregunta}`} value={v !== undefined ? `${v}/5 — ${LABELS[v]}` : "Sin responder"} />;
+            })}
+          </DocSection>
+        ))}
+      </DocumentViewer>
     );
   }
 
-  // ── Vista: lista de evaluaciones ────────────────────────────────────────────
+  // Lista
   if (view === "list") {
     return (
       <div className="max-w-3xl">
@@ -145,11 +166,8 @@ export function EosEvaluation({ clienteId, clienteNombre }: Props) {
             <h1 className="text-xl font-display font-bold">Evaluación Organizacional EOS</h1>
             <p className="mt-1 text-sm text-muted-foreground">{clienteNombre}</p>
           </div>
-          <Button size="sm" onClick={openNew}>
-            <Plus className="h-4 w-4 mr-1.5" /> Nueva evaluación
-          </Button>
+          <Button size="sm" onClick={openNew}><Plus className="h-4 w-4 mr-1.5" /> Nueva evaluación</Button>
         </div>
-
         {loadingList ? (
           <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : historial.length === 0 ? (
@@ -163,20 +181,17 @@ export function EosEvaluation({ clienteId, clienteNombre }: Props) {
               const { label, color } = scoreLabel(p);
               return (
                 <div key={ev.id} className="flex items-center justify-between rounded-lg border border-border bg-card px-5 py-4">
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {new Date(ev.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" })}
-                      </p>
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <Progress value={p} className="h-1.5 w-24" />
-                        <span className="text-xs text-muted-foreground">{p}/100</span>
-                        <Badge className={`${color} text-white text-xs hover:opacity-90`}>{label}</Badge>
-                      </div>
+                  <div>
+                    <p className="text-sm font-medium">{new Date(ev.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" })}</p>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <Progress value={p} className="h-1.5 w-24" />
+                      <span className="text-xs text-muted-foreground">{p}/100</span>
+                      <Badge className={`${color} text-white text-xs hover:opacity-90`}>{label}</Badge>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => openExisting(ev)}>Ver / Editar</Button>
+                    <button onClick={() => setViewingEv(ev)} className="rounded p-1.5 text-muted-foreground hover:text-foreground transition-colors" title="Ver documento"><Eye className="h-4 w-4" /></button>
+                    <Button variant="outline" size="sm" onClick={() => openExisting(ev)}>Editar</Button>
                     <button onClick={() => handleDelete(ev.id)} className="text-xs text-muted-foreground hover:text-destructive transition-colors">Eliminar</button>
                   </div>
                 </div>
@@ -188,58 +203,35 @@ export function EosEvaluation({ clienteId, clienteNombre }: Props) {
     );
   }
 
-  // ── Vista: formulario ───────────────────────────────────────────────────────
+  // Formulario
   const puntuacion = calcPuntuacion(respuestas);
   const answered = Object.keys(respuestas).length;
   const { label: scoreText, color: scoreColor } = scoreLabel(puntuacion);
 
   return (
     <div className="max-w-3xl">
-      <PrintHeader title="Evaluación Organizacional EOS" subtitle={clienteNombre} />
-
-      {/* Puntuación — solo impresión, siempre visible */}
-      <div className="hidden print:flex items-center justify-between mb-6 rounded-lg border border-gray-200 p-4">
-        <span className="text-sm font-medium text-gray-700">Puntuación total</span>
+      <div className="flex items-start justify-between mb-6">
         <div className="flex items-center gap-3">
-          <span className={`rounded-full px-3 py-0.5 text-xs font-semibold text-white ${scoreColor}`}>
-            {scoreText}
-          </span>
-          <span className="text-2xl font-bold text-gray-900">{puntuacion}/100</span>
-        </div>
-      </div>
-
-      <div className="flex items-start justify-between mb-6 print:hidden">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setView("list")} className="text-muted-foreground hover:text-foreground transition-colors">
-            <ChevronLeft className="h-5 w-5" />
-          </button>
+          <button onClick={() => setView("list")} className="text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft className="h-5 w-5" /></button>
           <div>
-            <h1 className="text-xl font-display font-bold">
-              {editingId ? "Editar evaluación" : "Nueva evaluación"}
-            </h1>
+            <h1 className="text-xl font-display font-bold">{editingId ? "Editar evaluación" : "Nueva evaluación"}</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">{clienteNombre}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {saving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-          <PrintButton />
-          <Button variant="ghost" size="sm" onClick={() => { setRespuestas({}); }}>
-            <RotateCcw className="h-4 w-4 mr-1.5" /> Reiniciar
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving || answered < PREGUNTAS.length}>
-            <Save className="h-4 w-4 mr-1.5" /> Guardar
-          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setRespuestas({})}><RotateCcw className="h-4 w-4 mr-1.5" /> Reiniciar</Button>
+          <Button size="sm" onClick={handleSave} disabled={saving || answered < PREGUNTAS.length}><Save className="h-4 w-4 mr-1.5" /> Guardar</Button>
         </div>
       </div>
 
-      {/* Puntuación */}
       {answered > 0 && (
         <div className="mb-8 rounded-lg border border-border bg-card p-5">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-foreground">Puntuación actual</span>
+            <span className="text-sm font-medium">Puntuación actual</span>
             <div className="flex items-center gap-2">
               <Badge className={`${scoreColor} text-white hover:opacity-90`}>{scoreText}</Badge>
-              <span className="text-2xl font-display font-bold text-foreground">{puntuacion}/100</span>
+              <span className="text-2xl font-display font-bold">{puntuacion}/100</span>
             </div>
           </div>
           <Progress value={puntuacion} className="h-2" />
@@ -247,7 +239,6 @@ export function EosEvaluation({ clienteId, clienteNombre }: Props) {
         </div>
       )}
 
-      {/* Preguntas */}
       <div className="space-y-8">
         {SECCIONES.map((sec) => (
           <div key={sec.label}>
@@ -258,29 +249,16 @@ export function EosEvaluation({ clienteId, clienteNombre }: Props) {
                 const valor = respuestas[idx];
                 return (
                   <div key={idx} className="rounded-lg border border-border bg-card p-4">
-                    <p className="mb-3 text-sm font-medium text-foreground">
-                      <span className="mr-2 text-xs text-muted-foreground">{idx + 1}.</span>
-                      {pregunta}
-                    </p>
-                    <div className="flex gap-2 print:hidden">
+                    <p className="mb-3 text-sm font-medium"><span className="mr-2 text-xs text-muted-foreground">{idx + 1}.</span>{pregunta}</p>
+                    <div className="flex gap-2">
                       {[1, 2, 3, 4, 5].map((v) => (
-                        <button
-                          key={v}
-                          onClick={() => setRespuestas((prev) => ({ ...prev, [idx]: v }))}
-                          className={`flex h-9 w-9 items-center justify-center rounded-md border text-sm font-semibold transition-all ${valor === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"}`}
-                        >
+                        <button key={v} onClick={() => setRespuestas((prev) => ({ ...prev, [idx]: v }))}
+                          className={`flex h-9 w-9 items-center justify-center rounded-md border text-sm font-semibold transition-all ${valor === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"}`}>
                           {v}
                         </button>
                       ))}
-                      {valor !== undefined && (
-                        <span className="ml-2 flex items-center text-xs text-muted-foreground">
-                          {["", "Muy bajo", "Bajo", "Regular", "Bueno", "Excelente"][valor]}
-                        </span>
-                      )}
+                      {valor !== undefined && <span className="ml-2 flex items-center text-xs text-muted-foreground">{LABELS[valor]}</span>}
                     </div>
-                    {valor !== undefined && (
-                      <p className="hidden text-sm print:block"><strong>{valor}/5</strong> — {["", "Muy bajo", "Bajo", "Regular", "Bueno", "Excelente"][valor]}</p>
-                    )}
                   </div>
                 );
               })}
@@ -290,7 +268,7 @@ export function EosEvaluation({ clienteId, clienteNombre }: Props) {
       </div>
 
       {answered === PREGUNTAS.length && (
-        <div className="mt-8 flex justify-end print:hidden">
+        <div className="mt-8 flex justify-end">
           <Button onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
             Guardar evaluación
