@@ -4,29 +4,26 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Print styles ─────────────────────────────────────────────────────────── */
+/* ── Print / Screen utilities ─────────────────────────────────────────────── */
+@media screen {
+  /* print-only sections are invisible on screen */
+  .print-only { display: none !important; }
+}
+
 @media print {
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  @page { margin: 1cm; }
+  @page { margin: 1.5cm; size: A4; }
 
-  /* Sidebar and navigation: hide */
-  aside,
-  header,
-  nav,
-  [data-no-print],
-  .no-print { display: none !important; }
-
-  /* Main content: remove left margin from sidebar */
-  main { margin-left: 0 !important; }
-
-  /* Cards: remove shadow */
-  .shadow-sm,
-  .shadow { box-shadow: none !important; }
-
-  /* Ensure white background */
+  /* Hide interactive chrome */
+  aside, header, nav, [data-no-print], .no-print { display: none !important; }
+  main { margin-left: 0 !important; padding: 0 !important; }
+  .shadow-sm, .shadow { box-shadow: none !important; }
   body, html { background: white !important; }
 
-  /* Print header (logo) — shown only in print */
+  /* Show print-only sections */
+  .print-only { display: block !important; }
+
+  /* Legacy print-header (backward compat) */
   .print-header { display: flex !important; }
 }
 

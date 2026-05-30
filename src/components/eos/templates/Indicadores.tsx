@@ -117,7 +117,7 @@ export function Indicadores({ clienteId, clienteNombre }: NoClientProps) {
         <table className="min-w-max w-full text-xs">
           <thead className="bg-muted/40">
             <tr>
-              <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Responsable</th>
+              <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap w-[96px] max-w-[96px]">Responsable</th>
               <th className="border-b border-l border-border px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Indicador</th>
               <th className="border-b border-l border-border px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Meta</th>
               {MESES.map((m) => (
@@ -134,7 +134,7 @@ export function Indicadores({ clienteId, clienteNombre }: NoClientProps) {
                     value={f.responsable}
                     onChange={(e) => updateFila(f.id, { responsable: e.target.value })}
                     placeholder="Nombre"
-                    className="h-7 min-w-[100px] text-xs"
+                    className="h-7 w-[90px] max-w-[90px] text-xs"
                   />
                 </td>
                 <td className="border-l border-border px-2 py-1.5">
