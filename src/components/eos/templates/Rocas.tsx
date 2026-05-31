@@ -8,7 +8,7 @@ import {
   FieldHint, type NoClientProps,
 } from "./shared";
 import {
-  DocumentViewer, DocSection, DocField,
+  DocumentViewer, DocSection, DocItem,
   makeMdFilename,
 } from "@/components/ui/DocumentViewer";
 import {
@@ -272,16 +272,16 @@ export function Rocas({ clienteId, clienteNombre }: NoClientProps) {
         mdContent={generateMd(data, clienteNombre)} mdFilename={makeMdFilename("rocas", clienteNombre)}>
         <DocSection label="Rocas Empresa">
           {empresa.length === 0 ? <p style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>Sin rocas.</p>
-            : empresa.map((i) => <DocField key={i.id} label={i.responsable ? `${i.responsable}${i.fecha ? ` — ${i.fecha}` : ""}` : ""} value={i.texto} />)}
+            : empresa.map((i) => <DocItem key={i.id} texto={i.texto} responsable={i.responsable} fecha={i.fecha} />)}
         </DocSection>
         <DocSection label="Rocas Semanales">
           {semanales.length === 0 ? <p style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>Sin rocas.</p>
-            : semanales.map((i) => <DocField key={i.id} label={i.responsable ? `${i.responsable}${i.fecha ? ` — ${i.fecha}` : ""}` : ""} value={i.texto} />)}
+            : semanales.map((i) => <DocItem key={i.id} texto={i.texto} responsable={i.responsable} fecha={i.fecha} />)}
         </DocSection>
         {departamentos.map((dept) => (
           <DocSection key={dept.id} label={dept.nombre || "Departamento"}>
             {(dept.items || []).length === 0 ? <p style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>Sin rocas.</p>
-              : (dept.items || []).map((i) => <DocField key={i.id} label={i.responsable ? `${i.responsable}${i.fecha ? ` — ${i.fecha}` : ""}` : ""} value={i.texto} />)}
+              : (dept.items || []).map((i) => <DocItem key={i.id} texto={i.texto} responsable={i.responsable} fecha={i.fecha} />)}
           </DocSection>
         ))}
       </DocumentViewer>

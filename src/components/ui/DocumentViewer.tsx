@@ -81,6 +81,17 @@ export function DocList({ items, numbered = true }: { items: string[]; numbered?
   );
 }
 
+export function DocItem({ texto, responsable, fecha }: { texto: string; responsable?: string; fecha?: string }) {
+  if (!texto) return null;
+  const meta = [responsable, fecha].filter(Boolean).join(" · ");
+  return (
+    <div style={{ marginBottom: "8px" }}>
+      <p style={{ fontSize: "12px", fontWeight: "500", color: "#111", margin: 0 }}>{texto}</p>
+      {meta && <p style={{ fontSize: "10px", color: "#999", marginTop: "1px", margin: 0 }}>{meta}</p>}
+    </div>
+  );
+}
+
 export function DocRow({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
   return (
