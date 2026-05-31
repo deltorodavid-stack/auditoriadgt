@@ -93,16 +93,23 @@ function SortableItemRow({ item, colId, onRemove, onUpdate }: {
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="group flex items-center gap-1.5 border-b border-border/40 py-1.5 last:border-0">
-      <span {...attributes} {...listeners} className="cursor-grab shrink-0 touch-none text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors print:hidden">
+    <div ref={setNodeRef} style={style} className="group flex items-start gap-1.5 border-b border-border/40 py-1.5 last:border-0">
+      <span {...attributes} {...listeners} className="mt-0.5 cursor-grab shrink-0 touch-none text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors print:hidden">
         <GripVertical className="h-3 w-3" />
       </span>
-      <span className="flex-1 text-sm cursor-pointer hover:text-primary transition-colors" onClick={() => setEditing(true)} title="Clic para editar">
-        {item.texto || <span className="italic text-muted-foreground/60">Sin texto</span>}
-      </span>
-      {item.responsable && <span className="shrink-0 text-xs text-muted-foreground">({item.responsable})</span>}
-      {item.fecha && <span className="shrink-0 text-xs text-muted-foreground">{fmtDate(item.fecha)}</span>}
-      <button onClick={() => onRemove(item.id)} className="ml-1 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:!text-destructive transition-all print:hidden">
+      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setEditing(true)} title="Clic para editar">
+        <p className="text-sm text-foreground hover:text-primary transition-colors leading-snug">
+          {item.texto || <span className="italic text-muted-foreground/60">Sin texto</span>}
+        </p>
+        {(item.responsable || item.fecha) && (
+          <p className="mt-0.5 text-[11px] text-gray-400 leading-tight">
+            {item.responsable && <span className="text-gray-500">{item.responsable}</span>}
+            {item.responsable && item.fecha && <span className="mx-1">·</span>}
+            {item.fecha && <span>{fmtDate(item.fecha)}</span>}
+          </p>
+        )}
+      </div>
+      <button onClick={() => onRemove(item.id)} className="mt-0.5 ml-1 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:!text-destructive transition-all print:hidden">
         <Trash2 className="h-3 w-3" />
       </button>
     </div>
