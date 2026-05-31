@@ -165,13 +165,29 @@ function AddForm({ placeholder, onAdd }: { placeholder: string; onAdd: (d: { tex
   );
 
   return (
-    <div className="mt-3 space-y-1.5 print:hidden">
-      <Input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={placeholder} className="h-7 text-xs" onKeyDown={(e) => e.key === "Enter" && submit()} autoFocus />
-      <div className="flex gap-1.5">
-        <Input value={resp} onChange={(e) => setResp(e.target.value)} placeholder="Responsable" className="h-7 flex-1 text-xs" />
-        <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-7 text-xs" />
-        <Button size="sm" className="h-7 shrink-0 px-3 text-xs" onClick={submit}>Añadir</Button>
-        <button onClick={reset} className="shrink-0 text-xs text-muted-foreground hover:text-foreground">✕</button>
+    <div className="mt-3 space-y-2 print:hidden">
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Asunto</label>
+        <textarea
+          autoFocus value={texto} onChange={(e) => setTexto(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Escape") reset(); }}
+          placeholder={placeholder}
+          className="mt-1 w-full resize-none rounded border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary min-h-[60px]"
+        />
+      </div>
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Responsable</label>
+        <input value={resp} onChange={(e) => setResp(e.target.value)}
+          className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary h-8" />
+      </div>
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Fecha límite</label>
+        <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
+          className="mt-1 rounded border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary h-8" />
+      </div>
+      <div className="flex items-center gap-2 pt-1">
+        <Button size="sm" className="h-7 px-3 text-xs" onClick={submit}>Añadir</Button>
+        <button onClick={reset} className="text-xs text-muted-foreground hover:text-foreground">Cancelar</button>
       </div>
     </div>
   );
