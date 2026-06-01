@@ -23,7 +23,10 @@
   /* Hide interactive chrome */
   aside, header, nav, [data-no-print], .no-print { display: none !important; }
   main { margin-left: 0 !important; padding: 0 !important; }
-  body, html, #root { background: white !important; overflow: hidden !important; }
+  html, body { background: white !important; overflow: hidden !important; height: auto !important; }
+  #root { background: white !important; }
+  ::-webkit-scrollbar { display: none !important; }
+  * { scrollbar-width: none !important; }
 
   /* Show print-only sections */
   .print-only { display: block !important; }

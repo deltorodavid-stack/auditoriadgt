@@ -2,6 +2,40 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Printer, Download } from "lucide-react";
 
+// ── Estilos con !important inyectados como <style> ─────────────────────────────
+const DV_STYLES = `
+  .dv-field-value {
+    font-size: 12px !important;
+    font-family: 'Calibri', 'Arial', sans-serif !important;
+    line-height: 1.6 !important;
+    white-space: pre-wrap !important;
+    color: #111 !important;
+  }
+  .dv-list-wrap {
+    font-size: 12px !important;
+    color: #111 !important;
+    line-height: 1.8 !important;
+    font-family: 'Calibri', 'Arial', sans-serif !important;
+  }
+  .dv-item-main {
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: #111 !important;
+    margin: 0 !important;
+  }
+  .dv-item-meta {
+    font-size: 11px !important;
+    color: #999 !important;
+    margin: 1px 0 0 0 !important;
+  }
+  .dv-row-text {
+    font-size: 12px !important;
+    color: #374151 !important;
+    font-family: 'Calibri', 'Arial', sans-serif !important;
+    margin-right: 20px !important;
+  }
+`;
+
 // ── Utilidades ─────────────────────────────────────────────────────────────────
 
 function slugify(s: string): string {
@@ -58,13 +92,7 @@ export function DocField({ label, value }: { label: string; value?: string | nul
           {label}
         </div>
       )}
-      <div style={{
-        fontSize: "12px", fontWeight: "400", color: "#111",
-        fontFamily: "'Calibri', 'Arial', sans-serif",
-        lineHeight: "1.6", whiteSpace: "pre-wrap",
-      }}>
-        {value}
-      </div>
+      <div className="dv-field-value">{value}</div>
     </div>
   );
 }
@@ -73,7 +101,7 @@ export function DocList({ items, numbered = true }: { items: string[]; numbered?
   const filtered = items.filter(Boolean);
   if (!filtered.length) return null;
   return (
-    <div style={{ fontSize: "12px", color: "#111", lineHeight: "1.8", fontFamily: "'Calibri', 'Arial', sans-serif" }}>
+    <div className="dv-list-wrap">
       {filtered.map((item, i) => (
         <div key={i}>{numbered ? `${i + 1}. ` : "• "}{item}</div>
       ))}
@@ -86,8 +114,8 @@ export function DocItem({ texto, responsable, fecha }: { texto: string; responsa
   const meta = [responsable, fecha].filter(Boolean).join(" · ");
   return (
     <div style={{ marginBottom: "8px" }}>
-      <p style={{ fontSize: "12px", fontWeight: "500", color: "#111", margin: 0 }}>{texto}</p>
-      {meta && <p style={{ fontSize: "11px", color: "#999", marginTop: "1px", margin: 0 }}>{meta}</p>}
+      <p className="dv-item-main">{texto}</p>
+      {meta && <p className="dv-item-meta">{meta}</p>}
     </div>
   );
 }
@@ -95,7 +123,7 @@ export function DocItem({ texto, responsable, fecha }: { texto: string; responsa
 export function DocRow({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
   return (
-    <span style={{ fontSize: "12px", marginRight: "20px", color: "#374151", fontFamily: "'Calibri', 'Arial', sans-serif" }}>
+    <span className="dv-row-text">
       <strong>{label}:</strong> {value}
     </span>
   );
@@ -133,6 +161,9 @@ export function DocumentViewer({
 
   return (
     <div>
+      {/* Estilos !important para texto del usuario */}
+      <style>{DV_STYLES}</style>
+
       {/* ── Toolbar (oculto al imprimir) ── */}
       <div className="mb-5 flex flex-wrap items-center gap-3 print:hidden">
         <button

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ReactFlow,
   Background,
@@ -152,22 +153,24 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
     if (error) toast.error("Error al guardar"); else toast.success("Guardado correctamente");
   };
 
-  // Impresión visual: usa visibility trick para mostrar solo el canvas de React Flow
+  // ── Impresión visual: usa React portal + CSS para aislar el canvas ─────────────
+  // El portal hace que #org-flow-canvas sea hijo DIRECTO de document.body,
+  // así que body > *:not(#org-flow-canvas) { display:none } no lo afecta.
   const handlePrintVisual = () => {
     const style = document.createElement("style");
     style.id = "org-visual-print-style";
     style.textContent = `
       @media print {
-        body { visibility: hidden !important; }
-        #org-flow-canvas, #org-flow-canvas * { visibility: visible !important; }
+        body > *:not(#org-flow-canvas) { display: none !important; }
         #org-flow-canvas {
           display: flex !important;
           flex-direction: column !important;
           position: fixed !important;
           inset: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
           background: white !important;
           z-index: 99999 !important;
-          padding: 0 !important;
         }
         @page { size: A4 landscape; margin: 0.8cm; }
       }
@@ -218,31 +221,39 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
           </DocSection>
         </DocumentViewer>
 
-        {/* Canvas de React Flow — oculto en pantalla, visible solo al imprimir visual */}
-        <div
-          id="org-flow-canvas"
-          style={{ display: "none", flexDirection: "column", height: "100vh" }}
-        >
-          {/* Cabecera con logo para impresión visual */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: "10px",
-            padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "white",
-            flexShrink: 0,
-          }}>
-            <img src="/images/logo-david-del-toro.png" alt="" style={{ maxHeight: "28px" }} />
-            <span style={{ fontSize: "13px", fontWeight: 600, color: "#111" }}>{clienteNombre} — Organigrama</span>
-          </div>
-          <div style={{ flex: 1 }}>
-            <ReactFlow
-              nodes={nodesWithCbs} edges={edges}
-              nodeTypes={nodeTypes}
-              fitView fitViewOptions={{ padding: 0.2 }}
-              className="bg-white"
-            >
-              <Background gap={16} size={1} className="opacity-20" />
-            </ReactFlow>
-          </div>
-        </div>
+        {/* Portal: #org-flow-canvas es hijo DIRECTO de document.body — se muestra solo al imprimir visual */}
+        {createPortal(
+          <div
+            id="org-flow-canvas"
+            style={{ display: "none", flexDirection: "column", background: "white" }}
+          >
+            {/* Cabecera con logo */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: "10px",
+              padding: "10px 16px", borderBottom: "1px solid #e5e7eb",
+              background: "white", flexShrink: 0,
+            }}>
+              <img src="/images/logo-david-del-toro.png" alt="" style={{ maxHeight: "28px" }} />
+              <span style={{ fontSize: "13px", fontWeight: 600, color: "#111" }}>
+                {clienteNombre} — Organigrama
+              </span>
+            </div>
+            {/* Canvas React Flow */}
+            <div style={{ flex: 1, height: "calc(100vh - 52px)" }}>
+              <ReactFlow
+                nodes={nodesWithCbs}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                fitView
+                fitViewOptions={{ padding: 0.15 }}
+                style={{ background: "white" }}
+              >
+                <Background gap={16} size={1} style={{ opacity: 0.2 }} />
+              </ReactFlow>
+            </div>
+          </div>,
+          document.body
+        )}
       </>
     );
   }
@@ -264,7 +275,7 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
         </div>
       </div>
 
-      <div id="org-flow-canvas" className="flex-1 rounded-lg border border-border overflow-hidden">
+      <div className="flex-1 rounded-lg border border-border overflow-hidden">
         <ReactFlow
           nodes={nodesWithCbs} edges={edges}
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
