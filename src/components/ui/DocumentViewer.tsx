@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Printer, Download } from "lucide-react";
 
@@ -59,7 +59,7 @@ export function DocField({ label, value }: { label: string; value?: string | nul
         </div>
       )}
       <div style={{
-        fontSize: "10px", fontWeight: "400", color: "#111",
+        fontSize: "12px", fontWeight: "400", color: "#111",
         fontFamily: "'Calibri', 'Arial', sans-serif",
         lineHeight: "1.6", whiteSpace: "pre-wrap",
       }}>
@@ -73,7 +73,7 @@ export function DocList({ items, numbered = true }: { items: string[]; numbered?
   const filtered = items.filter(Boolean);
   if (!filtered.length) return null;
   return (
-    <div style={{ fontSize: "10px", color: "#111", lineHeight: "1.8", fontFamily: "'Calibri', 'Arial', sans-serif" }}>
+    <div style={{ fontSize: "12px", color: "#111", lineHeight: "1.8", fontFamily: "'Calibri', 'Arial', sans-serif" }}>
       {filtered.map((item, i) => (
         <div key={i}>{numbered ? `${i + 1}. ` : "• "}{item}</div>
       ))}
@@ -87,7 +87,7 @@ export function DocItem({ texto, responsable, fecha }: { texto: string; responsa
   return (
     <div style={{ marginBottom: "8px" }}>
       <p style={{ fontSize: "12px", fontWeight: "500", color: "#111", margin: 0 }}>{texto}</p>
-      {meta && <p style={{ fontSize: "10px", color: "#999", marginTop: "1px", margin: 0 }}>{meta}</p>}
+      {meta && <p style={{ fontSize: "11px", color: "#999", marginTop: "1px", margin: 0 }}>{meta}</p>}
     </div>
   );
 }
@@ -95,7 +95,7 @@ export function DocItem({ texto, responsable, fecha }: { texto: string; responsa
 export function DocRow({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
   return (
-    <span style={{ fontSize: "10px", marginRight: "20px", color: "#374151", fontFamily: "'Calibri', 'Arial', sans-serif" }}>
+    <span style={{ fontSize: "12px", marginRight: "20px", color: "#374151", fontFamily: "'Calibri', 'Arial', sans-serif" }}>
       <strong>{label}:</strong> {value}
     </span>
   );
@@ -111,11 +111,26 @@ interface DocumentViewerProps {
   mdContent: string;
   mdFilename: string;
   children: React.ReactNode;
+  /** Botones extra en la toolbar (ej: modos de impresión alternativos) */
+  extraToolbar?: React.ReactNode;
 }
 
 export function DocumentViewer({
-  title, clienteNombre, date, onClose, mdContent, mdFilename, children,
+  title, clienteNombre, date, onClose, mdContent, mdFilename, children, extraToolbar,
 }: DocumentViewerProps) {
+  const [orientation, setOrientation] = useState<"portrait" | "landscape">("portrait");
+
+  const handlePrint = () => {
+    const style = document.createElement("style");
+    style.id = "dv-page-orientation";
+    style.textContent = `@page { size: A4 ${orientation}; margin: 1.5cm; }`;
+    document.head.appendChild(style);
+    window.print();
+    window.addEventListener("afterprint", () => {
+      document.getElementById("dv-page-orientation")?.remove();
+    }, { once: true });
+  };
+
   return (
     <div>
       {/* ── Toolbar (oculto al imprimir) ── */}
@@ -126,11 +141,32 @@ export function DocumentViewer({
         >
           <ArrowLeft className="h-4 w-4" /> Volver a editar
         </button>
+
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {/* Orientación */}
+          <div className="flex overflow-hidden rounded border border-border">
+            <button
+              onClick={() => setOrientation("portrait")}
+              className={`px-2.5 py-1 text-xs transition-colors ${orientation === "portrait" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              ↕ Vertical
+            </button>
+            <button
+              onClick={() => setOrientation("landscape")}
+              className={`border-l border-border px-2.5 py-1 text-xs transition-colors ${orientation === "landscape" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              ↔ Horizontal
+            </button>
+          </div>
+
           <span className="hidden text-xs text-muted-foreground sm:block">
-            En el diálogo de impresión, desactiva «Encabezados y pies»
+            Desactiva «Encabezados y pies» al imprimir
           </span>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
+
+          {/* Botones extra (ej: Organigrama visual) */}
+          {extraToolbar}
+
+          <Button variant="outline" size="sm" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-1.5" /> Imprimir / PDF
           </Button>
           <Button variant="outline" size="sm" onClick={() => downloadMd(mdFilename, mdContent)}>

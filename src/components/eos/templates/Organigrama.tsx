@@ -16,7 +16,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Save, Plus, Trash2, Eye } from "lucide-react";
+import { Save, Plus, Trash2, Eye, Printer } from "lucide-react";
 import { NoClientSelected, LoadingSpinner, SavingIndicator, FieldHint, type NoClientProps } from "./shared";
 import { toast } from "sonner";
 import { DocumentViewer, DocSection, makeMdFilename } from "@/components/ui/DocumentViewer";
@@ -152,36 +152,102 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
     if (error) toast.error("Error al guardar"); else toast.success("Guardado correctamente");
   };
 
+  // Impresión visual: usa visibility trick para mostrar solo el canvas de React Flow
+  const handlePrintVisual = () => {
+    const style = document.createElement("style");
+    style.id = "org-visual-print-style";
+    style.textContent = `
+      @media print {
+        body { visibility: hidden !important; }
+        #org-flow-canvas, #org-flow-canvas * { visibility: visible !important; }
+        #org-flow-canvas {
+          display: flex !important;
+          flex-direction: column !important;
+          position: fixed !important;
+          inset: 0 !important;
+          background: white !important;
+          z-index: 99999 !important;
+          padding: 0 !important;
+        }
+        @page { size: A4 landscape; margin: 0.8cm; }
+      }
+    `;
+    document.head.appendChild(style);
+    window.print();
+    window.addEventListener("afterprint", () => {
+      document.getElementById("org-visual-print-style")?.remove();
+    }, { once: true });
+  };
+
   if (!clienteId) return <NoClientSelected />;
   if (loading) return <LoadingSpinner />;
 
+  // ── Vista documento (listado) ────────────────────────────────────────────────
   if (viewMode) {
     return (
-      <DocumentViewer title="Organigrama" clienteNombre={clienteNombre}
-        onClose={() => setViewMode(false)}
-        mdContent={generateMd(nodes, clienteNombre)} mdFilename={makeMdFilename("organigrama", clienteNombre)}>
-        <DocSection label="Estructura Organizativa">
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
-            <thead>
-              <tr style={{ borderBottom: "2px solid #e5e7eb", background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600 }}>Puesto / Área</th>
-                <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600 }}>Responsable</th>
-              </tr>
-            </thead>
-            <tbody>
-              {nodes.map((n) => (
-                <tr key={n.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "5px 8px", fontWeight: 500 }}>{n.data.label as string}</td>
-                  <td style={{ padding: "5px 8px", color: "#6b7280" }}>{(n.data.persona as string) || "—"}</td>
+      <>
+        <DocumentViewer
+          title="Organigrama"
+          clienteNombre={clienteNombre}
+          onClose={() => setViewMode(false)}
+          mdContent={generateMd(nodes, clienteNombre)}
+          mdFilename={makeMdFilename("organigrama", clienteNombre)}
+          extraToolbar={
+            <Button variant="outline" size="sm" onClick={handlePrintVisual}>
+              <Printer className="h-4 w-4 mr-1.5" /> Imprimir visual
+            </Button>
+          }
+        >
+          <DocSection label="Estructura Organizativa">
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #e5e7eb", background: "#f9fafb" }}>
+                  <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600 }}>Puesto / Área</th>
+                  <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600 }}>Responsable</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </DocSection>
-      </DocumentViewer>
+              </thead>
+              <tbody>
+                {nodes.map((n) => (
+                  <tr key={n.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "5px 8px", fontWeight: 500 }}>{n.data.label as string}</td>
+                    <td style={{ padding: "5px 8px", color: "#6b7280" }}>{(n.data.persona as string) || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </DocSection>
+        </DocumentViewer>
+
+        {/* Canvas de React Flow — oculto en pantalla, visible solo al imprimir visual */}
+        <div
+          id="org-flow-canvas"
+          style={{ display: "none", flexDirection: "column", height: "100vh" }}
+        >
+          {/* Cabecera con logo para impresión visual */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: "10px",
+            padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "white",
+            flexShrink: 0,
+          }}>
+            <img src="/images/logo-david-del-toro.png" alt="" style={{ maxHeight: "28px" }} />
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "#111" }}>{clienteNombre} — Organigrama</span>
+          </div>
+          <div style={{ flex: 1 }}>
+            <ReactFlow
+              nodes={nodesWithCbs} edges={edges}
+              nodeTypes={nodeTypes}
+              fitView fitViewOptions={{ padding: 0.2 }}
+              className="bg-white"
+            >
+              <Background gap={16} size={1} className="opacity-20" />
+            </ReactFlow>
+          </div>
+        </div>
+      </>
     );
   }
 
+  // ── Vista edición ────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col" style={{ height: "calc(100vh - 140px)" }}>
       <div className="mb-4 flex items-center justify-between">
@@ -198,9 +264,14 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
         </div>
       </div>
 
-      <div className="flex-1 rounded-lg border border-border overflow-hidden">
-        <ReactFlow nodes={nodesWithCbs} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-          onConnect={onConnect} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.3 }} className="bg-muted/20">
+      <div id="org-flow-canvas" className="flex-1 rounded-lg border border-border overflow-hidden">
+        <ReactFlow
+          nodes={nodesWithCbs} edges={edges}
+          onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+          onConnect={onConnect} nodeTypes={nodeTypes}
+          fitView fitViewOptions={{ padding: 0.3 }}
+          className="bg-muted/20"
+        >
           <Background gap={16} size={1} className="opacity-30" />
           <Controls />
         </ReactFlow>
