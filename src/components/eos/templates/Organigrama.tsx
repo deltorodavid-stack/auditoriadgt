@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import html2canvas from "html2canvas";
 import {
   ReactFlow,
   Background,
@@ -82,13 +81,8 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [capturing, setCapturing] = useState(false);
   const [viewMode, setViewMode] = useState(false);
   const clienteIdRef = useRef(clienteId);
-  // Ref al contenedor del React Flow para html2canvas
-  const flowContainerRef = useRef<HTMLDivElement>(null);
-  // Instancia de React Flow para llamar fitView
-  const rfInstanceRef = useRef<{ fitView: (opts?: object) => void; zoomTo: (zoom: number) => void } | null>(null);
 
   useEffect(() => { clienteIdRef.current = clienteId; }, [clienteId]);
 
@@ -158,121 +152,19 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
     if (error) toast.error("Error al guardar"); else toast.success("Guardado correctamente");
   };
 
-  // ── Captura con html2canvas y abre ventana de impresión ──────────────────────
-  const handlePrintVisual = async () => {
-    const container = flowContainerRef.current;
-    if (!container) return;
-
-    setCapturing(true);
-    // Guardar tamaño/posición originales
-    const origWidth = container.style.width;
-    const origHeight = container.style.height;
-    const origPosition = container.style.position;
-    const origTop = container.style.top;
-    const origLeft = container.style.left;
-    const origZIndex = container.style.zIndex;
-
-    try {
-      // Expandir temporalmente el contenedor a 1400×900 para capturar mayor resolución
-      container.style.width = "1400px";
-      container.style.height = "900px";
-      container.style.position = "fixed";
-      container.style.top = "-9999px";
-      container.style.left = "-9999px";
-      container.style.zIndex = "-1";
-
-      // fitView en el contenedor expandido
-      if (rfInstanceRef.current) {
-        rfInstanceRef.current.fitView({ padding: 0.05, duration: 0 });
-        await new Promise((r) => setTimeout(r, 500));
-      }
-
-      const canvas = await html2canvas(container, {
-        backgroundColor: "#ffffff",
-        scale: 1,
-        useCORS: true,
-        logging: false,
-        width: 1400,
-        height: 900,
-      });
-
-      // Restaurar tamaño original
-      container.style.width = origWidth;
-      container.style.height = origHeight;
-      container.style.position = origPosition;
-      container.style.top = origTop;
-      container.style.left = origLeft;
-      container.style.zIndex = origZIndex;
-
-      const imageUrl = canvas.toDataURL("image/png");
-      const logoUrl = `${window.location.origin}/images/logo-david-del-toro.png`;
-
-      const win = window.open("", "_blank", "width=1000,height=750");
-      if (!win) {
-        toast.error("El navegador bloqueó la ventana. Permite popups para esta página.");
-        return;
-      }
-
-      win.document.write(`<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <title>Organigrama — ${clienteNombre}</title>
-  <style>
-    @page { size: A4 landscape; margin: 0.5cm; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: white; font-family: Arial, sans-serif; width: 100%; }
-    .wrapper { width: 100%; padding: 0.5cm; }
-    .header { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; margin-bottom: 12px; }
-    .header img { max-height: 30px; width: auto; }
-    .header .client { font-size: 11px; color: #666; margin-bottom: 1px; }
-    .header .title { font-size: 15px; font-weight: 700; color: #111; }
-    .chart img { width: 297mm; height: auto; max-width: 100%; display: block; }
-    .print-btn {
-      position: fixed; top: 16px; right: 16px;
-      padding: 8px 18px; background: #1E40AF; color: white;
-      border: none; border-radius: 6px; cursor: pointer;
-      font-size: 13px; font-weight: 600; z-index: 999;
-    }
-    .print-btn:hover { background: #1e3a8a; }
-    .hint { position: fixed; top: 56px; right: 16px; font-size: 11px; color: #9ca3af; }
-    @media print {
-      .print-btn, .hint { display: none !important; }
-      body { padding: 0; }
-    }
-  </style>
-</head>
-<body>
-  <button class="print-btn" onclick="window.print()">Imprimir / PDF</button>
-  <p class="hint">Desactiva «Encabezados y pies» al imprimir</p>
-  <div class="wrapper">
-    <div class="header">
-      <img src="${logoUrl}" onerror="this.style.display='none'" />
-      <div>
-        <div class="client">${clienteNombre}</div>
-        <div class="title">Organigrama</div>
-      </div>
-    </div>
-    <div class="chart">
-      <img src="${imageUrl}" />
-    </div>
-  </div>
-</body>
-</html>`);
-      win.document.close();
-    } catch (err) {
-      // Restaurar también en caso de error
-      container.style.width = origWidth;
-      container.style.height = origHeight;
-      container.style.position = origPosition;
-      container.style.top = origTop;
-      container.style.left = origLeft;
-      container.style.zIndex = origZIndex;
-      console.error(err);
-      toast.error("Error al capturar el organigrama. Inténtalo de nuevo.");
-    } finally {
-      setCapturing(false);
-    }
+  // ── Abre organigrama en ventana de impresión independiente ───────────────────
+  const handlePrintVisual = () => {
+    const payload = {
+      clienteNombre,
+      nodes: nodes.map(({ id, position, type, data }) => ({
+        id, position, type,
+        data: { label: data.label as string, persona: data.persona as string, fixed: Boolean(data.fixed) },
+      })),
+      edges: edges.map(({ id, source, target, type }) => ({ id, source, target, type })),
+    };
+    sessionStorage.setItem("org-print-data", JSON.stringify(payload));
+    const win = window.open(`${window.location.origin}/organigrama-print`, "_blank", "width=1100,height=750");
+    if (!win) toast.error("El navegador bloqueó la ventana. Permite popups para esta página.");
   };
 
   if (!clienteId) return <NoClientSelected />;
@@ -324,23 +216,20 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
           <Button size="sm" variant="outline" onClick={() => setViewMode(true)}>
             <List className="h-4 w-4 mr-1.5" /> Ver listado
           </Button>
-          <Button size="sm" variant="outline" onClick={handlePrintVisual} disabled={capturing}>
-            <Printer className="h-4 w-4 mr-1.5" />
-            {capturing ? "Capturando…" : "Imprimir visual"}
+          <Button size="sm" variant="outline" onClick={handlePrintVisual}>
+            <Printer className="h-4 w-4 mr-1.5" /> Imprimir visual
           </Button>
           <Button size="sm" variant="outline" onClick={addNode}><Plus className="h-4 w-4 mr-1.5" /> Añadir caja</Button>
           <Button size="sm" onClick={handleSave} disabled={saving}><Save className="h-4 w-4 mr-1.5" /> Guardar</Button>
         </div>
       </div>
 
-      {/* Contenedor con ref para html2canvas */}
-      <div ref={flowContainerRef} className="flex-1 rounded-lg border border-border overflow-hidden">
+      <div className="flex-1 rounded-lg border border-border overflow-hidden">
         <ReactFlow
           nodes={nodesWithCbs} edges={edges}
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
           onConnect={onConnect} nodeTypes={nodeTypes}
           fitView fitViewOptions={{ padding: 0.3 }}
-          onInit={(instance) => { rfInstanceRef.current = instance; }}
           className="bg-white"
         >
           <Background gap={16} size={1} className="opacity-30" />
