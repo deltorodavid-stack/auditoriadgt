@@ -157,11 +157,13 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
     const payload = {
       clienteNombre,
       nodes: nodes.map(({ id, position, type, data }) => ({
-        id, position, type,
+        id, position, type: type || "orgNode",
         data: { label: data.label as string, persona: data.persona as string, fixed: Boolean(data.fixed) },
       })),
-      edges: edges.map(({ id, source, target, type }) => ({ id, source, target, type })),
+      edges: edges.map(({ id, source, target, type }) => ({ id, source, target, type: type || "smoothstep" })),
     };
+    console.log("[Organigrama] nodos a imprimir:", payload.nodes.map((n) => n.id), "| total:", payload.nodes.length);
+    console.log("[Organigrama] edges a imprimir:", payload.edges.length, payload.edges);
     sessionStorage.setItem("org-print-data", JSON.stringify(payload));
     const win = window.open(`${window.location.origin}/organigrama-print`, "_blank", "width=1100,height=750");
     if (!win) toast.error("El navegador bloqueó la ventana. Permite popups para esta página.");

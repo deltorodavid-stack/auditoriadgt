@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import {
   ReactFlow,
   Background,
+  Handle,
+  Position,
   type Node,
   type Edge,
 } from "@xyflow/react";
@@ -37,12 +39,15 @@ function OrgNodeView({ data }: { data: Record<string, unknown> }) {
   const d = data as OrgNodeData;
   return (
     <div style={{
+      position: "relative",
       minWidth: 140, borderRadius: 8, border: "2px solid #1E40AF",
       background: "white", padding: "10px 16px", textAlign: "center",
       boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
     }}>
+      <Handle type="target" position={Position.Top} style={{ width: 8, height: 8, border: 0, background: "#1E40AF" }} />
       <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{d.label as string}</div>
       {d.persona && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 3 }}>{d.persona as string}</div>}
+      <Handle type="source" position={Position.Bottom} style={{ width: 8, height: 8, border: 0, background: "#1E40AF" }} />
     </div>
   );
 }
@@ -64,9 +69,11 @@ export default function OrganigramaPrint() {
       const raw = sessionStorage.getItem("org-print-data");
       if (!raw) { setError("No hay datos de organigrama. Cierra esta ventana y pulsa «Imprimir visual» de nuevo."); return; }
       const parsed = JSON.parse(raw) as OrgData;
-      // Asignar tipo de nodo correcto
+      // Asignar tipo de nodo correcto a TODOS los nodos (incl. visionario)
       parsed.nodes = (parsed.nodes || []).map((n) => ({ ...n, type: "orgNode" }));
       parsed.edges = (parsed.edges || []).map((e) => ({ ...e, type: e.type || "smoothstep" }));
+      console.log("[OrganigramaPrint] nodos leídos:", parsed.nodes.map((n) => n.id), "| total:", parsed.nodes.length);
+      console.log("[OrganigramaPrint] edges leídos:", parsed.edges.length, parsed.edges);
       setOrgData(parsed);
     } catch {
       setError("Error al leer los datos del organigrama.");
@@ -133,6 +140,7 @@ export default function OrganigramaPrint() {
           nodes={orgData.nodes}
           edges={orgData.edges}
           nodeTypes={nodeTypes}
+          defaultEdgeOptions={{ style: { stroke: "#1E40AF", strokeWidth: 2 }, type: "smoothstep" }}
           fitView
           fitViewOptions={{ padding: 0.18 }}
           nodesDraggable={false}
