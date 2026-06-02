@@ -88,7 +88,7 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
   // Ref al contenedor del React Flow para html2canvas
   const flowContainerRef = useRef<HTMLDivElement>(null);
   // Instancia de React Flow para llamar fitView
-  const rfInstanceRef = useRef<{ fitView: (opts?: object) => void } | null>(null);
+  const rfInstanceRef = useRef<{ fitView: (opts?: object) => void; zoomTo: (zoom: number) => void } | null>(null);
 
   useEffect(() => { clienteIdRef.current = clienteId; }, [clienteId]);
 
@@ -165,10 +165,12 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
 
     setCapturing(true);
     try {
-      // Ajusta el zoom para que todos los nodos quepan
+      // Zoom out y ajusta vista para que todos los nodos quepan
       if (rfInstanceRef.current) {
+        rfInstanceRef.current.zoomTo(0.7);
+        await new Promise((r) => setTimeout(r, 200));
         rfInstanceRef.current.fitView({ padding: 0.15, duration: 0 });
-        await new Promise((r) => setTimeout(r, 300));
+        await new Promise((r) => setTimeout(r, 500));
       }
 
       const canvas = await html2canvas(container, {
@@ -194,15 +196,15 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
   <meta charset="utf-8" />
   <title>Organigrama — ${clienteNombre}</title>
   <style>
-    @page { size: A4 landscape; margin: 1cm; }
+    @page { size: A4 landscape; margin: 0.5cm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: white; font-family: Arial, sans-serif; padding: 20px; }
-    .header { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; margin-bottom: 20px; }
-    .header img { max-height: 32px; }
-    .header .client { font-size: 12px; color: #666; margin-bottom: 2px; }
-    .header .title { font-size: 16px; font-weight: 700; color: #111; }
-    .chart { text-align: center; }
-    .chart img { max-width: 100%; max-height: calc(100vh - 120px); object-fit: contain; }
+    body { background: white; font-family: Arial, sans-serif; width: 100%; }
+    .wrapper { width: 100%; padding: 0.5cm; }
+    .header { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; margin-bottom: 12px; }
+    .header img { max-height: 30px; width: auto; }
+    .header .client { font-size: 11px; color: #666; margin-bottom: 1px; }
+    .header .title { font-size: 15px; font-weight: 700; color: #111; }
+    .chart img { width: 100%; height: auto; max-width: 100%; display: block; }
     .print-btn {
       position: fixed; top: 16px; right: 16px;
       padding: 8px 18px; background: #1E40AF; color: white;
@@ -220,15 +222,17 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
 <body>
   <button class="print-btn" onclick="window.print()">Imprimir / PDF</button>
   <p class="hint">Desactiva «Encabezados y pies» al imprimir</p>
-  <div class="header">
-    <img src="${logoUrl}" onerror="this.style.display='none'" />
-    <div>
-      <div class="client">${clienteNombre}</div>
-      <div class="title">Organigrama</div>
+  <div class="wrapper">
+    <div class="header">
+      <img src="${logoUrl}" onerror="this.style.display='none'" />
+      <div>
+        <div class="client">${clienteNombre}</div>
+        <div class="title">Organigrama</div>
+      </div>
     </div>
-  </div>
-  <div class="chart">
-    <img src="${imageUrl}" />
+    <div class="chart">
+      <img src="${imageUrl}" />
+    </div>
   </div>
 </body>
 </html>`);
