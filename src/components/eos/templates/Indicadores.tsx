@@ -2,7 +2,7 @@ import { useState } from "react";
 import { usePlantilla } from "@/hooks/usePlantilla";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Save, Eye } from "lucide-react";
+import { Plus, Trash2, Save, Eye, GripVertical } from "lucide-react";
 import {
   NoClientSelected, LoadingSpinner, SavingIndicator,
   FieldHint, type NoClientProps,
@@ -10,6 +10,14 @@ import {
 import {
   DocumentViewer, DocSection, makeMdFilename,
 } from "@/components/ui/DocumentViewer";
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
@@ -37,9 +45,42 @@ function generateMd(data: Data, clienteNombre: string): string {
   return lines.join("\n");
 }
 
+// ── Fila sortable ───────────────────────────────────────────────────────────────
+function SortableFila({ f, updateFila, updateMes, removeFila }: {
+  f: Fila;
+  updateFila: (id: string, patch: Partial<Fila>) => void;
+  updateMes: (id: string, mes: string, val: string) => void;
+  removeFila: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: f.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
+
+  return (
+    <tr ref={setNodeRef} style={style} className="border-b border-border last:border-0 hover:bg-muted/20">
+      <td className="px-1 py-1.5 w-6">
+        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors">
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+      </td>
+      <td className="px-2 py-1.5"><Input value={f.responsable} onChange={(e) => updateFila(f.id, { responsable: e.target.value })} placeholder="Nombre" className="h-7 w-[90px] max-w-[90px] text-xs" /></td>
+      <td className="border-l border-border px-2 py-1.5"><Input value={f.indicador} onChange={(e) => updateFila(f.id, { indicador: e.target.value })} placeholder="Indicador" className="h-7 min-w-[130px] text-xs" /></td>
+      <td className="border-l border-border px-2 py-1.5"><Input value={f.meta} onChange={(e) => updateFila(f.id, { meta: e.target.value })} placeholder="Meta" className="h-7 w-20 text-xs" /></td>
+      {MESES.map((m) => (
+        <td key={m} className="border-l border-border px-1 py-1.5">
+          <Input value={f.meses[m] ?? ""} onChange={(e) => updateMes(f.id, m, e.target.value)} className="h-7 w-14 text-center text-xs" />
+        </td>
+      ))}
+      <td className="px-2 py-1.5"><button onClick={() => removeFila(f.id)} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-3.5 w-3.5" /></button></td>
+    </tr>
+  );
+}
+
 export function Indicadores({ clienteId, clienteNombre }: NoClientProps) {
   const { data, setData, saveNow, saving, loading } = usePlantilla<Data>(clienteId, "indicadores", makeDefaultData());
   const [viewMode, setViewMode] = useState(false);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   if (!clienteId) return <NoClientSelected />;
   if (loading) return <LoadingSpinner />;
@@ -51,6 +92,15 @@ export function Indicadores({ clienteId, clienteNombre }: NoClientProps) {
     const fila = data.filas.find((f) => f.id === id);
     if (!fila) return;
     updateFila(id, { meses: { ...fila.meses, [mes]: val } });
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = data.filas.findIndex((f) => f.id === active.id);
+      const newIndex = data.filas.findIndex((f) => f.id === over.id);
+      setData({ filas: arrayMove(data.filas, oldIndex, newIndex) });
+    }
   };
 
   if (viewMode) {
@@ -107,6 +157,7 @@ export function Indicadores({ clienteId, clienteNombre }: NoClientProps) {
         <table className="min-w-max w-full text-xs">
           <thead className="bg-muted/40">
             <tr>
+              <th className="w-6 border-b border-border" />
               <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap w-[96px] max-w-[96px]">Responsable</th>
               <th className="border-b border-l border-border px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Indicador</th>
               <th className="border-b border-l border-border px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Meta</th>
@@ -114,21 +165,15 @@ export function Indicadores({ clienteId, clienteNombre }: NoClientProps) {
               <th className="w-8 border-b border-border" />
             </tr>
           </thead>
-          <tbody>
-            {data.filas.map((f) => (
-              <tr key={f.id} className="border-b border-border last:border-0 hover:bg-muted/20">
-                <td className="px-2 py-1.5"><Input value={f.responsable} onChange={(e) => updateFila(f.id, { responsable: e.target.value })} placeholder="Nombre" className="h-7 w-[90px] max-w-[90px] text-xs" /></td>
-                <td className="border-l border-border px-2 py-1.5"><Input value={f.indicador} onChange={(e) => updateFila(f.id, { indicador: e.target.value })} placeholder="Indicador" className="h-7 min-w-[130px] text-xs" /></td>
-                <td className="border-l border-border px-2 py-1.5"><Input value={f.meta} onChange={(e) => updateFila(f.id, { meta: e.target.value })} placeholder="Meta" className="h-7 w-20 text-xs" /></td>
-                {MESES.map((m) => (
-                  <td key={m} className="border-l border-border px-1 py-1.5">
-                    <Input value={f.meses[m] ?? ""} onChange={(e) => updateMes(f.id, m, e.target.value)} className="h-7 w-14 text-center text-xs" />
-                  </td>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={data.filas.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+              <tbody>
+                {data.filas.map((f) => (
+                  <SortableFila key={f.id} f={f} updateFila={updateFila} updateMes={updateMes} removeFila={removeFila} />
                 ))}
-                <td className="px-2 py-1.5"><button onClick={() => removeFila(f.id)} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-3.5 w-3.5" /></button></td>
-              </tr>
-            ))}
-          </tbody>
+              </tbody>
+            </SortableContext>
+          </DndContext>
         </table>
       </div>
     </div>

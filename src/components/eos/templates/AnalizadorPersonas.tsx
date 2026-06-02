@@ -2,7 +2,7 @@ import { useState } from "react";
 import { usePlantilla } from "@/hooks/usePlantilla";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Save, Eye } from "lucide-react";
+import { Plus, Trash2, Save, Eye, GripVertical } from "lucide-react";
 import {
   NoClientSelected, LoadingSpinner, SavingIndicator,
   FieldHint, type NoClientProps,
@@ -10,6 +10,14 @@ import {
 import {
   DocumentViewer, DocSection, makeMdFilename,
 } from "@/components/ui/DocumentViewer";
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type CellValue = "✓" | "△" | "✗" | "";
 
@@ -53,9 +61,44 @@ function generateMd(data: Data, clienteNombre: string): string {
   return lines.join("\n");
 }
 
+// ── Fila sortable ───────────────────────────────────────────────────────────────
+function SortablePersonaRow({ p, columnas, updatePersona, setValorCell, removePersona }: {
+  p: Persona;
+  columnas: string[];
+  updatePersona: (id: string, patch: Partial<Persona>) => void;
+  setValorCell: (id: string, col: string, v: CellValue) => void;
+  removePersona: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: p.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
+
+  return (
+    <tr ref={setNodeRef} style={style} className="border-b border-border last:border-0 hover:bg-muted/20">
+      <td className="px-1 py-2 w-6">
+        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors">
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+      </td>
+      <td className="px-3 py-2"><Input value={p.nombre} onChange={(e) => updatePersona(p.id, { nombre: e.target.value })} placeholder="Nombre" className="h-8 text-sm" /></td>
+      {columnas.map((col, i) => (
+        <td key={i} className="border-l border-border px-2 py-2">
+          <CellSelect value={p.valores[col] ?? ""} onChange={(v) => setValorCell(p.id, col, v)} />
+        </td>
+      ))}
+      <td className="border-l border-border px-2 py-2"><CellSelect value={p.cdc_comprende} onChange={(v) => updatePersona(p.id, { cdc_comprende: v })} /></td>
+      <td className="border-l border-border px-2 py-2"><CellSelect value={p.cdc_desea} onChange={(v) => updatePersona(p.id, { cdc_desea: v })} /></td>
+      <td className="border-l border-border px-2 py-2"><CellSelect value={p.cdc_capacitado} onChange={(v) => updatePersona(p.id, { cdc_capacitado: v })} /></td>
+      <td className="px-2 py-2"><button onClick={() => removePersona(p.id)} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-4 w-4" /></button></td>
+    </tr>
+  );
+}
+
 export function AnalizadorPersonas({ clienteId, clienteNombre }: NoClientProps) {
   const { data, setData, saveNow, saving, loading } = usePlantilla<Data>(clienteId, "personas", DEFAULT);
   const [viewMode, setViewMode] = useState(false);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   if (!clienteId) return <NoClientSelected />;
   if (loading) return <LoadingSpinner />;
@@ -99,6 +142,15 @@ export function AnalizadorPersonas({ clienteId, clienteNombre }: NoClientProps) 
       columnas_valores: data.columnas_valores.filter((_, j) => j !== i),
       personas: data.personas.map((p) => { const v = { ...p.valores }; delete v[col]; return { ...p, valores: v }; }),
     });
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = data.personas.findIndex((p) => p.id === active.id);
+      const newIndex = data.personas.findIndex((p) => p.id === over.id);
+      setData({ ...data, personas: arrayMove(data.personas, oldIndex, newIndex) });
+    }
   };
 
   if (viewMode) {
@@ -156,6 +208,7 @@ export function AnalizadorPersonas({ clienteId, clienteNombre }: NoClientProps) 
         <table className="min-w-max w-full text-xs">
           <thead className="bg-muted/40">
             <tr>
+              <th className="w-6 border-b border-border" />
               <th className="w-40 border-b border-border px-3 py-2 text-left text-xs font-medium text-muted-foreground">Persona</th>
               {data.columnas_valores.map((col, i) => (
                 <th key={i} className="border-b border-l border-border px-2 py-2 text-center text-xs font-medium text-muted-foreground">
@@ -172,25 +225,19 @@ export function AnalizadorPersonas({ clienteId, clienteNombre }: NoClientProps) 
               <th className="w-8 border-b border-border" />
             </tr>
           </thead>
-          <tbody>
-            {data.personas.length === 0 && (
-              <tr><td colSpan={data.columnas_valores.length + 4} className="py-8 text-center text-sm text-muted-foreground">Pulsa «Persona» para añadir la primera fila.</td></tr>
-            )}
-            {data.personas.map((p) => (
-              <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/20">
-                <td className="px-3 py-2"><Input value={p.nombre} onChange={(e) => updatePersona(p.id, { nombre: e.target.value })} placeholder="Nombre" className="h-8 text-sm" /></td>
-                {data.columnas_valores.map((col, i) => (
-                  <td key={i} className="border-l border-border px-2 py-2">
-                    <CellSelect value={p.valores[col] ?? ""} onChange={(v) => setValorCell(p.id, col, v)} />
-                  </td>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={data.personas.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+              <tbody>
+                {data.personas.length === 0 && (
+                  <tr><td colSpan={data.columnas_valores.length + 5} className="py-8 text-center text-sm text-muted-foreground">Pulsa «Persona» para añadir la primera fila.</td></tr>
+                )}
+                {data.personas.map((p) => (
+                  <SortablePersonaRow key={p.id} p={p} columnas={data.columnas_valores}
+                    updatePersona={updatePersona} setValorCell={setValorCell} removePersona={removePersona} />
                 ))}
-                <td className="border-l border-border px-2 py-2"><CellSelect value={p.cdc_comprende} onChange={(v) => updatePersona(p.id, { cdc_comprende: v })} /></td>
-                <td className="border-l border-border px-2 py-2"><CellSelect value={p.cdc_desea} onChange={(v) => updatePersona(p.id, { cdc_desea: v })} /></td>
-                <td className="border-l border-border px-2 py-2"><CellSelect value={p.cdc_capacitado} onChange={(v) => updatePersona(p.id, { cdc_capacitado: v })} /></td>
-                <td className="px-2 py-2"><button onClick={() => removePersona(p.id)} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-4 w-4" /></button></td>
-              </tr>
-            ))}
-          </tbody>
+              </tbody>
+            </SortableContext>
+          </DndContext>
         </table>
       </div>
     </div>
