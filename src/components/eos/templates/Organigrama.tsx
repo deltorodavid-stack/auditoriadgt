@@ -164,22 +164,45 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
     if (!container) return;
 
     setCapturing(true);
+    // Guardar tamaño/posición originales
+    const origWidth = container.style.width;
+    const origHeight = container.style.height;
+    const origPosition = container.style.position;
+    const origTop = container.style.top;
+    const origLeft = container.style.left;
+    const origZIndex = container.style.zIndex;
+
     try {
-      // Zoom out y ajusta vista para que todos los nodos quepan
+      // Expandir temporalmente el contenedor a 1400×900 para capturar mayor resolución
+      container.style.width = "1400px";
+      container.style.height = "900px";
+      container.style.position = "fixed";
+      container.style.top = "-9999px";
+      container.style.left = "-9999px";
+      container.style.zIndex = "-1";
+
+      // fitView en el contenedor expandido
       if (rfInstanceRef.current) {
-        rfInstanceRef.current.zoomTo(0.7);
-        await new Promise((r) => setTimeout(r, 200));
-        rfInstanceRef.current.fitView({ padding: 0.15, duration: 0 });
+        rfInstanceRef.current.fitView({ padding: 0.05, duration: 0 });
         await new Promise((r) => setTimeout(r, 500));
       }
 
       const canvas = await html2canvas(container, {
         backgroundColor: "#ffffff",
-        scale: 2,
+        scale: 1,
         useCORS: true,
         logging: false,
-        removeContainer: true,
+        width: 1400,
+        height: 900,
       });
+
+      // Restaurar tamaño original
+      container.style.width = origWidth;
+      container.style.height = origHeight;
+      container.style.position = origPosition;
+      container.style.top = origTop;
+      container.style.left = origLeft;
+      container.style.zIndex = origZIndex;
 
       const imageUrl = canvas.toDataURL("image/png");
       const logoUrl = `${window.location.origin}/images/logo-david-del-toro.png`;
@@ -204,7 +227,7 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
     .header img { max-height: 30px; width: auto; }
     .header .client { font-size: 11px; color: #666; margin-bottom: 1px; }
     .header .title { font-size: 15px; font-weight: 700; color: #111; }
-    .chart img { width: 100%; height: auto; max-width: 100%; display: block; }
+    .chart img { width: 297mm; height: auto; max-width: 100%; display: block; }
     .print-btn {
       position: fixed; top: 16px; right: 16px;
       padding: 8px 18px; background: #1E40AF; color: white;
@@ -238,6 +261,13 @@ export function Organigrama({ clienteId, clienteNombre }: NoClientProps) {
 </html>`);
       win.document.close();
     } catch (err) {
+      // Restaurar también en caso de error
+      container.style.width = origWidth;
+      container.style.height = origHeight;
+      container.style.position = origPosition;
+      container.style.top = origTop;
+      container.style.left = origLeft;
+      container.style.zIndex = origZIndex;
       console.error(err);
       toast.error("Error al capturar el organigrama. Inténtalo de nuevo.");
     } finally {
