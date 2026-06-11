@@ -1,63 +1,58 @@
-import { useEffect, useState } from "react";
-import {
-  ReactFlow,
-  Background,
-  Handle,
-  Position,
-  type Node,
-  type Edge,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
+import { useEffect, useMemo, useState } from "react";
 
-// ── Estilos de impresión inyectados ───────────────────────────────────────────
+// ── Estilos de impresión ───────────────────────────────────────────────────────
 const PRINT_STYLES = `
   @page { size: A4 landscape; margin: 0.5cm; }
   * { box-sizing: border-box; }
-  body { margin: 0; padding: 0; background: white !important; font-family: Arial, sans-serif; }
+  html, body { margin: 0; padding: 0; background: white !important; font-family: Arial, Helvetica, sans-serif; }
   @media print {
     .no-print { display: none !important; }
-    html, body { height: 100%; overflow: hidden; }
-    #org-flow-wrap {
-      position: fixed !important;
-      top: 60px !important;
-      left: 0 !important;
-      right: 0 !important;
-      bottom: 0 !important;
-    }
   }
 `;
 
-interface OrgNodeData {
-  label: string;
-  persona: string;
-  fixed?: boolean;
-  [key: string]: unknown;
+// Dimensiones de cada caja (idénticas a las del editor React Flow)
+const NODE_W = 160;
+const NODE_H = 60;
+
+interface PrintNode {
+  id: string;
+  position: { x: number; y: number };
+  data: { label: string; persona: string; fixed?: boolean };
 }
-
-// Nodo visual de sólo lectura (sin inputs)
-function OrgNodeView({ data }: { data: Record<string, unknown> }) {
-  const d = data as OrgNodeData;
-  return (
-    <div style={{
-      position: "relative",
-      minWidth: 140, borderRadius: 8, border: "2px solid #1E40AF",
-      background: "white", padding: "10px 16px", textAlign: "center",
-      boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-    }}>
-      <Handle type="target" position={Position.Top} style={{ width: 8, height: 8, border: 0, background: "#1E40AF" }} />
-      <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{d.label as string}</div>
-      {d.persona && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 3 }}>{d.persona as string}</div>}
-      <Handle type="source" position={Position.Bottom} style={{ width: 8, height: 8, border: 0, background: "#1E40AF" }} />
-    </div>
-  );
+interface PrintEdge {
+  id: string;
+  source: string;
+  target: string;
+  type?: string;
 }
-
-const nodeTypes = { orgNode: OrgNodeView };
-
 interface OrgData {
   clienteNombre?: string;
-  nodes: Node[];
-  edges: Edge[];
+  nodes: PrintNode[];
+  edges: PrintEdge[];
+}
+
+// Construye un path tipo "smooth step": baja del source, tramo horizontal a
+// media altura y baja hasta el target, con esquinas redondeadas.
+function buildEdgePath(sx: number, sy: number, tx: number, ty: number): string {
+  const midY = (sy + ty) / 2;
+  const r = Math.min(12, Math.abs(tx - sx) / 2 || 12, Math.abs(midY - sy) / 2 || 12);
+
+  // Caso vertical directo (mismo x): línea recta
+  if (Math.abs(tx - sx) < 1) {
+    return `M ${sx},${sy} L ${tx},${ty}`;
+  }
+
+  const dirX = tx > sx ? 1 : -1;
+  const dirY = ty > sy ? 1 : -1;
+
+  return [
+    `M ${sx},${sy}`,
+    `L ${sx},${midY - r * dirY}`,
+    `Q ${sx},${midY} ${sx + r * dirX},${midY}`,
+    `L ${tx - r * dirX},${midY}`,
+    `Q ${tx},${midY} ${tx},${midY + r * dirY}`,
+    `L ${tx},${ty}`,
+  ].join(" ");
 }
 
 export default function OrganigramaPrint() {
@@ -67,18 +62,35 @@ export default function OrganigramaPrint() {
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem("org-print-data");
-      if (!raw) { setError("No hay datos de organigrama. Cierra esta ventana y pulsa «Imprimir visual» de nuevo."); return; }
+      if (!raw) {
+        setError("No hay datos de organigrama. Cierra esta ventana y pulsa «Imprimir visual» de nuevo.");
+        return;
+      }
       const parsed = JSON.parse(raw) as OrgData;
-      // Asignar tipo de nodo correcto a TODOS los nodos (incl. visionario)
-      parsed.nodes = (parsed.nodes || []).map((n) => ({ ...n, type: "orgNode" }));
-      parsed.edges = (parsed.edges || []).map((e) => ({ ...e, type: e.type || "smoothstep" }));
-      console.log("[OrganigramaPrint] nodos leídos:", parsed.nodes.map((n) => n.id), "| total:", parsed.nodes.length);
-      console.log("[OrganigramaPrint] edges leídos:", parsed.edges.length, parsed.edges);
+      parsed.nodes = parsed.nodes || [];
+      parsed.edges = parsed.edges || [];
       setOrgData(parsed);
     } catch {
       setError("Error al leer los datos del organigrama.");
     }
   }, []);
+
+  // Bounding box + geometría del SVG
+  const geometry = useMemo(() => {
+    if (!orgData || orgData.nodes.length === 0) return null;
+    const xs = orgData.nodes.map((n) => n.position.x);
+    const ys = orgData.nodes.map((n) => n.position.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const maxX = Math.max(...orgData.nodes.map((n) => n.position.x + NODE_W));
+    const maxY = Math.max(...orgData.nodes.map((n) => n.position.y + NODE_H));
+    const pad = 50;
+    const vbX = minX - pad;
+    const vbY = minY - pad;
+    const vbW = maxX - minX + pad * 2;
+    const vbH = maxY - minY + pad * 2;
+    return { vbX, vbY, vbW, vbH };
+  }, [orgData]);
 
   if (error) {
     return (
@@ -96,6 +108,9 @@ export default function OrganigramaPrint() {
     );
   }
 
+  // Mapa id → nodo para resolver edges
+  const nodeById = new Map(orgData.nodes.map((n) => [n.id, n]));
+
   return (
     <>
       <style>{PRINT_STYLES}</style>
@@ -103,8 +118,7 @@ export default function OrganigramaPrint() {
       {/* ── Cabecera ─────────────────────────────────────────────────────── */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "10px 16px", borderBottom: "1px solid #e5e7eb",
-        background: "white", height: 52,
+        padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "white",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <img
@@ -134,27 +148,76 @@ export default function OrganigramaPrint() {
         </button>
       </div>
 
-      {/* ── React Flow ───────────────────────────────────────────────────── */}
-      <div id="org-flow-wrap" style={{ position: "absolute", top: 52, left: 0, right: 0, bottom: 0 }}>
-        <ReactFlow
-          nodes={orgData.nodes}
-          edges={orgData.edges}
-          nodeTypes={nodeTypes}
-          defaultEdgeOptions={{ style: { stroke: "#1E40AF", strokeWidth: 2 }, type: "smoothstep" }}
-          fitView
-          fitViewOptions={{ padding: 0.18 }}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={false}
-          panOnDrag={false}
-          zoomOnScroll={false}
-          zoomOnPinch={false}
-          zoomOnDoubleClick={false}
-          preventScrolling={false}
-          style={{ background: "white" }}
-        >
-          <Background gap={16} size={1} style={{ opacity: 0.15 }} />
-        </ReactFlow>
+      {/* ── Organigrama en SVG vectorial ─────────────────────────────────── */}
+      <div style={{ padding: "16px", width: "100%" }}>
+        {geometry && (
+          <svg
+            viewBox={`${geometry.vbX} ${geometry.vbY} ${geometry.vbW} ${geometry.vbH}`}
+            width="100%"
+            preserveAspectRatio="xMidYMid meet"
+            style={{ display: "block", maxHeight: "calc(100vh - 90px)" }}
+          >
+            {/* Aristas */}
+            <g>
+              {orgData.edges.map((e) => {
+                const s = nodeById.get(e.source);
+                const t = nodeById.get(e.target);
+                if (!s || !t) return null;
+                const sx = s.position.x + NODE_W / 2;
+                const sy = s.position.y + NODE_H;
+                const tx = t.position.x + NODE_W / 2;
+                const ty = t.position.y;
+                return (
+                  <path
+                    key={e.id}
+                    d={buildEdgePath(sx, sy, tx, ty)}
+                    stroke="#1E40AF"
+                    strokeWidth={1.5}
+                    fill="none"
+                  />
+                );
+              })}
+            </g>
+
+            {/* Nodos */}
+            <g>
+              {orgData.nodes.map((n) => {
+                const x = n.position.x;
+                const y = n.position.y;
+                const cx = x + NODE_W / 2;
+                const hasPersona = Boolean(n.data.persona);
+                return (
+                  <g key={n.id}>
+                    <rect
+                      x={x} y={y} width={NODE_W} height={NODE_H} rx={8} ry={8}
+                      fill="#ffffff" stroke="#1E40AF" strokeWidth={2}
+                    />
+                    <text
+                      x={cx}
+                      y={hasPersona ? y + NODE_H / 2 - 4 : y + NODE_H / 2}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      style={{ fontSize: 11, fontWeight: 700, fill: "#111827", fontFamily: "Arial, sans-serif" }}
+                    >
+                      {n.data.label}
+                    </text>
+                    {hasPersona && (
+                      <text
+                        x={cx}
+                        y={y + NODE_H / 2 + 12}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        style={{ fontSize: 9, fill: "#666666", fontFamily: "Arial, sans-serif" }}
+                      >
+                        {n.data.persona}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+          </svg>
+        )}
       </div>
     </>
   );
