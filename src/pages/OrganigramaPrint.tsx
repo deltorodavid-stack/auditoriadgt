@@ -5,8 +5,29 @@ const PRINT_STYLES = `
   @page { size: A4 landscape; margin: 0.5cm; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: white !important; font-family: Arial, Helvetica, sans-serif; }
+
+  #org-header { page-break-after: avoid; break-after: avoid; }
+  #org-svg-wrap, #org-svg-wrap svg {
+    page-break-inside: avoid; break-inside: avoid;
+    page-break-before: avoid; break-before: avoid;
+  }
+
   @media print {
     .no-print { display: none !important; }
+    html, body, #root { margin: 0 !important; padding: 0 !important; height: auto !important; }
+    #org-header { position: relative !important; margin-bottom: 10px !important; }
+    #org-svg-wrap {
+      width: 100% !important;
+      height: auto !important;
+      max-height: calc(100vh - 80px) !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+    }
+    #org-svg-wrap svg {
+      width: 100% !important;
+      height: auto !important;
+      max-height: calc(100vh - 80px) !important;
+    }
   }
 `;
 
@@ -116,7 +137,7 @@ export default function OrganigramaPrint() {
       <style>{PRINT_STYLES}</style>
 
       {/* ── Cabecera ─────────────────────────────────────────────────────── */}
-      <div style={{
+      <div id="org-header" style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "white",
       }}>
@@ -149,13 +170,13 @@ export default function OrganigramaPrint() {
       </div>
 
       {/* ── Organigrama en SVG vectorial ─────────────────────────────────── */}
-      <div style={{ padding: "16px", width: "100%" }}>
+      <div id="org-svg-wrap" style={{ padding: "16px", width: "100%" }}>
         {geometry && (
           <svg
             viewBox={`${geometry.vbX} ${geometry.vbY} ${geometry.vbW} ${geometry.vbH}`}
             width="100%"
             preserveAspectRatio="xMidYMid meet"
-            style={{ display: "block", maxHeight: "calc(100vh - 90px)" }}
+            style={{ display: "block", height: "auto", maxHeight: "calc(100vh - 90px)" }}
           >
             {/* Aristas */}
             <g>
