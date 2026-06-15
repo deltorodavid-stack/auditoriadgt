@@ -4,6 +4,7 @@ import {
   ChevronRight,
   ClipboardList,
   LayoutDashboard,
+  LineChart,
   LogOut,
   X,
 } from "lucide-react";
@@ -229,6 +230,12 @@ export function AdminSidebar({
               </ul>
             )}
           </div>
+
+          {navItem(
+            "cuadro_mando",
+            "Cuadro de Mando",
+            <LineChart className="h-4 w-4 shrink-0" />
+          )}
         </nav>
 
         {/* Footer */}

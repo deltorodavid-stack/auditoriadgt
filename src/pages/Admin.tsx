@@ -14,6 +14,7 @@ import { Asuntos } from "@/components/eos/templates/Asuntos";
 import { AnalizadorPersonas } from "@/components/eos/templates/AnalizadorPersonas";
 import { Indicadores } from "@/components/eos/templates/Indicadores";
 import { Organigrama } from "@/components/eos/templates/Organigrama";
+import { CuadroMando } from "@/components/cuadromando/CuadroMando";
 import { Loader2 } from "lucide-react";
 import Auth from "./Auth";
 
@@ -62,6 +63,8 @@ export default function Admin() {
         return <Indicadores {...clienteProps} />;
       case "plantilla_organigrama":
         return <Organigrama {...clienteProps} />;
+      case "cuadro_mando":
+        return <CuadroMando {...clienteProps} />;
       default:
         return null;
     }

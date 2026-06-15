@@ -9,4 +9,5 @@ export type AdminSection =
   | "plantilla_asuntos"
   | "plantilla_personas"
   | "plantilla_indicadores"
-  | "plantilla_organigrama";
+  | "plantilla_organigrama"
+  | "cuadro_mando";
