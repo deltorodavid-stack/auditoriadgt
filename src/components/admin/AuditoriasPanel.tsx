@@ -18,7 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, FileDown, Eye } from "lucide-react";
+import { Loader2, FileDown, Eye, Download } from "lucide-react";
+import { downloadMd, makeMdFilename } from "@/components/ui/DocumentViewer";
 
 interface AuditUser {
   id: string;
@@ -112,6 +113,24 @@ export function AuditoriasPanel({ selectedClientId }: Props) {
   function handleExportPDF(user: AuditUser) {
     setSelectedUser(user);
     setTimeout(() => window.print(), 300);
+  }
+
+  function generateMd(user: AuditUser): string {
+    const empresa = user.cliente_nombre || "Sin empresa";
+    const lines: string[] = [`# Auditoría — ${empresa}`, ""];
+    for (const block of AUDIT_BLOCKS) {
+      lines.push(`## Bloque ${block.number}: ${block.title}`, "");
+      for (const q of block.questions) {
+        const resp = user.respuestas[q.id]?.trim();
+        lines.push(`**${q.label}**`, resp || "_Sin respuesta_", "");
+      }
+    }
+    return lines.join("\n");
+  }
+
+  function handleDownloadMd(user: AuditUser) {
+    const empresa = user.cliente_nombre || "auditoria";
+    downloadMd(makeMdFilename("auditoria", empresa), generateMd(user));
   }
 
   if (loading) {
@@ -264,7 +283,14 @@ export function AuditoriasPanel({ selectedClientId }: Props) {
                   </div>
                 </div>
               ))}
-              <div className="flex justify-end border-t border-border pt-4 print:hidden">
+              <div className="flex justify-end gap-2 border-t border-border pt-4 print:hidden">
+                <Button
+                  variant="outline"
+                  onClick={() => handleDownloadMd(selectedUser)}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Descargar .md
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => handleExportPDF(selectedUser)}
