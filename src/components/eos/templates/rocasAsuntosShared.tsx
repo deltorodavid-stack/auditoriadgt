@@ -85,12 +85,13 @@ export function useRocasAsuntos(clienteId: string | null) {
 }
 
 // ── Selector con checkboxes para las reuniones ────────────────────────────────────
-export function SelectorRA({ data, tipo, selectedIds, onChange, emptyLabel }: {
+export function SelectorRA({ data, tipo, selectedIds, onChange, emptyLabel, heading }: {
   data: RAData;
   tipo: RATipo;
   selectedIds: string[];
   onChange: (ids: string[]) => void;
   emptyLabel: string;
+  heading?: string;
 }) {
   const columnas = getColumnas(data, tipo).map((c) => ({
     ...c, items: c.items.filter((i) => !i.completado),
@@ -101,11 +102,14 @@ export function SelectorRA({ data, tipo, selectedIds, onChange, emptyLabel }: {
   };
 
   if (columnas.length === 0) {
-    return <p className="mt-2 text-xs italic text-muted-foreground">{emptyLabel}</p>;
+    return <p className="mt-2 text-[13px] italic text-muted-foreground">{emptyLabel}</p>;
   }
 
   return (
     <div className="mt-2 space-y-3 rounded-md border border-border bg-muted/20 p-3">
+      {heading && (
+        <p className="text-xs font-medium text-foreground">{heading}</p>
+      )}
       {columnas.map((col) => (
         <div key={col.colId}>
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{col.label}</p>
@@ -116,7 +120,7 @@ export function SelectorRA({ data, tipo, selectedIds, onChange, emptyLabel }: {
                 <label key={item.id} className="flex cursor-pointer items-start gap-2 rounded px-1 py-0.5 hover:bg-background/60">
                   <input type="checkbox" checked={checked} onChange={() => toggle(item.id)}
                     className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer accent-primary" />
-                  <span className="text-xs leading-snug text-foreground">
+                  <span className="text-[13px] leading-snug text-foreground">
                     {item.texto || <span className="italic text-muted-foreground/60">Sin texto</span>}
                     {item.responsable && <span className="text-muted-foreground"> — {item.responsable}</span>}
                   </span>
@@ -142,6 +146,18 @@ export function resolveSeleccionados(data: RAData, tipo: RATipo, ids: string[]):
     .map((i) => ({ texto: i.texto, responsable: i.responsable }));
 }
 
+// ── Título de apartado de agenda dentro del documento de reunión ─────────────────
+// 14px / 700 / azul brand, para que se vea como cabecera frente al contenido (12px).
+export function AgendaDocField({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  return (
+    <div style={{ marginBottom: "14px" }}>
+      <div style={{ fontSize: "14px", fontWeight: 700, color: "#1E40AF", marginBottom: "3px" }}>{label}</div>
+      <div className="dv-field-value">{value}</div>
+    </div>
+  );
+}
+
 // ── Campo de documento con la selección + texto libre (para reuniones) ───────────
 export function SeleccionDocField({ label, seleccion, freeText }: {
   label: string;
@@ -150,8 +166,8 @@ export function SeleccionDocField({ label, seleccion, freeText }: {
 }) {
   if (seleccion.length === 0 && !freeText) return null;
   return (
-    <div style={{ marginBottom: "12px" }}>
-      <div style={{ fontSize: "11px", fontWeight: 600, color: "#374151", marginBottom: "4px" }}>{label}</div>
+    <div style={{ marginBottom: "14px" }}>
+      <div style={{ fontSize: "14px", fontWeight: 700, color: "#1E40AF", marginBottom: "3px" }}>{label}</div>
       {seleccion.map((s, i) => (
         <DocItem key={i} texto={s.texto} responsable={s.responsable} />
       ))}

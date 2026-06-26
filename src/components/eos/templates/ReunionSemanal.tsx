@@ -15,7 +15,7 @@ import {
   makeMdFilename,
 } from "@/components/ui/DocumentViewer";
 import {
-  useRocasAsuntos, SelectorRA, resolveSeleccionados, SeleccionDocField, seleccionMdLines,
+  useRocasAsuntos, SelectorRA, resolveSeleccionados, SeleccionDocField, AgendaDocField, seleccionMdLines,
 } from "./rocasAsuntosShared";
 
 type EstadoReunion = "preparada" | "en_curso" | "completada";
@@ -125,7 +125,7 @@ export function ReunionSemanal({ clienteId, clienteNombre }: NoClientProps) {
             {AGENDA.map(({ key, label }) => {
               if (key === ROCAS_KEY) return <SeleccionDocField key={key} label={label} seleccion={selRocas} freeText={r[key] as string} />;
               if (key === ASUNTOS_KEY) return <SeleccionDocField key={key} label={label} seleccion={selAsuntos} freeText={r[key] as string} />;
-              return (r[key] as string) ? <DocField key={key} label={label} value={r[key] as string} /> : null;
+              return (r[key] as string) ? <AgendaDocField key={key} label={label} value={r[key] as string} /> : null;
             })}
           </DocSection>
           {r.acta && <DocSection label="Acta"><DocField label="" value={r.acta} /></DocSection>}
@@ -192,20 +192,24 @@ export function ReunionSemanal({ clienteId, clienteNombre }: NoClientProps) {
                   </div>
                   <div>
                     <p className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-primary">Agenda</p>
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       {AGENDA.map(({ key, label, hint }) => (
-                        <div key={key}><SectionTitle>{label}</SectionTitle><FieldHint>{hint}</FieldHint>
+                        <div key={key}>
+                          <h3 className="text-base font-semibold text-foreground">{label}</h3>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
                           {key === ROCAS_KEY && (
                             <SelectorRA data={rocas} tipo="rocas" selectedIds={r.rocas_seleccionadas || []}
                               onChange={(ids) => update(r.id, { rocas_seleccionadas: ids })}
+                              heading="Selecciona las rocas a tratar"
                               emptyLabel="No hay rocas activas. Créalas en la sección Rocas." />
                           )}
                           {key === ASUNTOS_KEY && (
                             <SelectorRA data={asuntos} tipo="asuntos" selectedIds={r.asuntos_seleccionados || []}
                               onChange={(ids) => update(r.id, { asuntos_seleccionados: ids })}
+                              heading="Selecciona los asuntos a tratar"
                               emptyLabel="No hay asuntos activos. Créalos en la sección Asuntos." />
                           )}
-                          <Textarea className="mt-2 min-h-[70px] bg-background" value={(r[key] as string) || ""} onChange={(e) => update(r.id, { [key]: e.target.value })} /></div>
+                          <Textarea className="mt-2 min-h-[70px] bg-background text-sm" value={(r[key] as string) || ""} onChange={(e) => update(r.id, { [key]: e.target.value })} /></div>
                       ))}
                     </div>
                   </div>

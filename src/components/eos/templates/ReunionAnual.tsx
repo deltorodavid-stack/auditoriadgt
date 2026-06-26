@@ -15,7 +15,7 @@ import {
   makeMdFilename,
 } from "@/components/ui/DocumentViewer";
 import {
-  useRocasAsuntos, SelectorRA, resolveSeleccionados, SeleccionDocField, seleccionMdLines,
+  useRocasAsuntos, SelectorRA, resolveSeleccionados, SeleccionDocField, AgendaDocField, seleccionMdLines,
 } from "./rocasAsuntosShared";
 
 type EstadoReunion = "preparada" | "en_curso" | "completada";
@@ -124,13 +124,13 @@ export function ReunionAnual({ clienteId, clienteNombre }: NoClientProps) {
             {r.valoracion !== null && <DocRow label="Valoración" value={`${r.valoracion}/10`} />}
           </DocSection>
           <DocSection label="Día 1 — Revisión y Visión">
-            {DIA1.map(({ key, label }) => (r[key] as string) ? <DocField key={key} label={label} value={r[key] as string} /> : null)}
+            {DIA1.map(({ key, label }) => (r[key] as string) ? <AgendaDocField key={key} label={label} value={r[key] as string} /> : null)}
           </DocSection>
           <DocSection label="Día 2 — Planificación y Resolución">
             {DIA2.map(({ key, label }) => {
               if (key === ROCAS_KEY) return <SeleccionDocField key={key} label={label} seleccion={selRocas} freeText={r[key] as string} />;
               if (key === ASUNTOS_KEY) return <SeleccionDocField key={key} label={label} seleccion={selAsuntos} freeText={r[key] as string} />;
-              return (r[key] as string) ? <DocField key={key} label={label} value={r[key] as string} /> : null;
+              return (r[key] as string) ? <AgendaDocField key={key} label={label} value={r[key] as string} /> : null;
             })}
           </DocSection>
           {r.acta && <DocSection label="Acta"><DocField label="" value={r.acta} /></DocSection>}
@@ -198,10 +198,12 @@ export function ReunionAnual({ clienteId, clienteNombre }: NoClientProps) {
                     <h3 className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-primary">
                       <span className="rounded bg-primary px-1.5 py-0.5 text-primary-foreground">Día 1</span>Revisión y Visión
                     </h3>
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       {DIA1.map(({ key, label, hint }) => (
-                        <div key={key}><SectionTitle>{label}</SectionTitle><FieldHint>{hint}</FieldHint>
-                          <Textarea className="mt-2 min-h-[70px] bg-background" value={(r[key] as string) || ""} onChange={(e) => update(r.id, { [key]: e.target.value })} /></div>
+                        <div key={key}>
+                          <h3 className="text-base font-semibold text-foreground">{label}</h3>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+                          <Textarea className="mt-2 min-h-[70px] bg-background text-sm" value={(r[key] as string) || ""} onChange={(e) => update(r.id, { [key]: e.target.value })} /></div>
                       ))}
                     </div>
                   </div>
@@ -209,20 +211,24 @@ export function ReunionAnual({ clienteId, clienteNombre }: NoClientProps) {
                     <h3 className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-primary">
                       <span className="rounded bg-primary px-1.5 py-0.5 text-primary-foreground">Día 2</span>Planificación y Resolución
                     </h3>
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       {DIA2.map(({ key, label, hint }) => (
-                        <div key={key}><SectionTitle>{label}</SectionTitle><FieldHint>{hint}</FieldHint>
+                        <div key={key}>
+                          <h3 className="text-base font-semibold text-foreground">{label}</h3>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
                           {key === ROCAS_KEY && (
                             <SelectorRA data={rocas} tipo="rocas" selectedIds={r.rocas_seleccionadas || []}
                               onChange={(ids) => update(r.id, { rocas_seleccionadas: ids })}
+                              heading="Selecciona las rocas a tratar"
                               emptyLabel="No hay rocas activas. Créalas en la sección Rocas." />
                           )}
                           {key === ASUNTOS_KEY && (
                             <SelectorRA data={asuntos} tipo="asuntos" selectedIds={r.asuntos_seleccionados || []}
                               onChange={(ids) => update(r.id, { asuntos_seleccionados: ids })}
+                              heading="Selecciona los asuntos a tratar"
                               emptyLabel="No hay asuntos activos. Créalos en la sección Asuntos." />
                           )}
-                          <Textarea className="mt-2 min-h-[70px] bg-background" value={(r[key] as string) || ""} onChange={(e) => update(r.id, { [key]: e.target.value })} /></div>
+                          <Textarea className="mt-2 min-h-[70px] bg-background text-sm" value={(r[key] as string) || ""} onChange={(e) => update(r.id, { [key]: e.target.value })} /></div>
                       ))}
                     </div>
                   </div>
