@@ -19,20 +19,21 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { CompletadosPanel, getColumnas } from "./rocasAsuntosShared";
 
-interface Item { id: string; texto: string; responsable: string; fecha: string }
+interface Item { id: string; texto: string; responsable: string; fecha: string; completado?: boolean }
 interface Departamento { id: string; nombre: string; items: Item[] }
 interface Data { empresa: Item[]; semanales: Item[]; departamentos: Departamento[] }
 const DEFAULT: Data = { empresa: [], semanales: [], departamentos: [] };
 
 function toItem(raw: unknown, i: number): Item {
-  if (typeof raw === "string") return { id: `l-${i}`, texto: raw, responsable: "", fecha: "" };
+  if (typeof raw === "string") return { id: `l-${i}`, texto: raw, responsable: "", fecha: "", completado: false };
   const r = raw as Partial<Item>;
-  return { id: r.id || `l-${i}`, texto: r.texto || "", responsable: r.responsable || "", fecha: r.fecha || "" };
+  return { id: r.id || `l-${i}`, texto: r.texto || "", responsable: r.responsable || "", fecha: r.fecha || "", completado: Boolean(r.completado) };
 }
 function toItems(arr: unknown[]): Item[] { return (arr || []).map(toItem); }
 function newItem(texto: string, responsable: string, fecha: string): Item {
-  return { id: `i-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, texto, responsable, fecha };
+  return { id: `i-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, texto, responsable, fecha, completado: false };
 }
 function fmtDate(d: string) {
   if (!d) return "";
@@ -97,6 +98,11 @@ function SortableItemRow({ item, colId, onRemove, onUpdate }: {
       <span {...attributes} {...listeners} className="mt-0.5 cursor-grab shrink-0 touch-none text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors print:hidden">
         <GripVertical className="h-3 w-3" />
       </span>
+      <input type="checkbox" checked={Boolean(item.completado)}
+        onChange={(e) => onUpdate(item.id, { completado: e.target.checked })}
+        onClick={(e) => e.stopPropagation()}
+        title="Marcar como completada"
+        className="mt-1 h-3.5 w-3.5 shrink-0 cursor-pointer accent-primary print:hidden" />
       <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setEditing(true)} title="Clic para editar">
         <p className="text-sm text-foreground hover:text-primary transition-colors leading-snug">
           {item.texto || <span className="italic text-muted-foreground/60">Sin texto</span>}
@@ -138,14 +144,19 @@ function SortableDept({ dept, onRemoveDept, onUpdateNombre, onAddItem, onRemoveI
         <Input value={dept.nombre} onChange={(e) => onUpdateNombre(dept.id, e.target.value)} placeholder="Nombre del departamento" className="h-7 text-xs font-medium" />
         <button onClick={() => onRemoveDept(dept.id)} className="shrink-0 text-muted-foreground hover:text-destructive transition-colors print:hidden"><Trash2 className="h-3.5 w-3.5" /></button>
       </div>
-      <SortableContext items={(dept.items || []).map((i) => i.id)} strategy={verticalListSortingStrategy}>
-        {(dept.items || []).length === 0 && <p className="text-xs italic text-muted-foreground">Sin rocas.</p>}
-        {(dept.items || []).map((item) => (
-          <SortableItemRow key={item.id} item={item} colId={dept.id}
-            onRemove={(id) => onRemoveItem(dept.id, id)}
-            onUpdate={(id, patch) => onUpdateItem(dept.id, id, patch)} />
-        ))}
-      </SortableContext>
+      {(() => {
+        const activos = (dept.items || []).filter((i) => !i.completado);
+        return (
+          <SortableContext items={activos.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            {activos.length === 0 && <p className="text-xs italic text-muted-foreground">Sin rocas.</p>}
+            {activos.map((item) => (
+              <SortableItemRow key={item.id} item={item} colId={dept.id}
+                onRemove={(id) => onRemoveItem(dept.id, id)}
+                onUpdate={(id, patch) => onUpdateItem(dept.id, id, patch)} />
+            ))}
+          </SortableContext>
+        );
+      })()}
       <AddForm placeholder="Roca…" onAdd={(d) => onAddItem(dept.id, d)} />
     </div>
   );
@@ -196,12 +207,14 @@ function AddForm({ placeholder, onAdd }: { placeholder: string; onAdd: (d: { tex
 function generateMd(data: Data, clienteNombre: string): string {
   const lines = [`# Rocas — ${clienteNombre}`];
   const fmtItem = (i: Item) => `- ${i.texto}${i.responsable ? ` (${i.responsable})` : ""}${i.fecha ? ` — ${i.fecha}` : ""}`;
-  if (data.empresa.length) { lines.push(`\n## Rocas Empresa`); data.empresa.forEach((i) => lines.push(fmtItem(i))); }
-  if (data.semanales.length) { lines.push(`\n## Rocas Semanales`); data.semanales.forEach((i) => lines.push(fmtItem(i))); }
+  const act = (arr: Item[]) => (arr || []).filter((i) => !i.completado);
+  if (act(data.empresa).length) { lines.push(`\n## Rocas Empresa`); act(data.empresa).forEach((i) => lines.push(fmtItem(i))); }
+  if (act(data.semanales).length) { lines.push(`\n## Rocas Semanales`); act(data.semanales).forEach((i) => lines.push(fmtItem(i))); }
   for (const dept of data.departamentos || []) {
-    if (dept.nombre || dept.items.length) {
+    const items = act(dept.items);
+    if (dept.nombre || items.length) {
       lines.push(`\n## ${dept.nombre || "Departamento"}`);
-      dept.items.forEach((i) => lines.push(fmtItem(i)));
+      items.forEach((i) => lines.push(fmtItem(i)));
     }
   }
   return lines.join("\n");
@@ -227,6 +240,20 @@ export function Rocas({ clienteId, clienteNombre }: NoClientProps) {
   const empresa = data.empresa || [];
   const semanales = data.semanales || [];
   const departamentos = data.departamentos || [];
+  const empresaActivas = empresa.filter((i) => !i.completado);
+  const semanalesActivas = semanales.filter((i) => !i.completado);
+
+  // Marcar/desmarcar completado y vaciar histórico
+  const setCompletado = (colId: string, itemId: string, value: boolean) => {
+    if (colId === "empresa") setData({ ...data, empresa: empresa.map((i) => i.id === itemId ? { ...i, completado: value } : i) });
+    else if (colId === "semanales") setData({ ...data, semanales: semanales.map((i) => i.id === itemId ? { ...i, completado: value } : i) });
+    else setData({ ...data, departamentos: departamentos.map((d) => d.id === colId ? { ...d, items: (d.items || []).map((i) => i.id === itemId ? { ...i, completado: value } : i) } : d) });
+  };
+  const clearCompletados = () => setData({
+    empresa: empresa.filter((i) => !i.completado),
+    semanales: semanales.filter((i) => !i.completado),
+    departamentos: departamentos.map((d) => ({ ...d, items: (d.items || []).filter((i) => !i.completado) })),
+  });
 
   const addEmpresa = (d: { texto: string; responsable: string; fecha: string }) => setData({ ...data, empresa: [...empresa, newItem(d.texto, d.responsable, d.fecha)] });
   const removeEmpresa = (id: string) => setData({ ...data, empresa: empresa.filter((i) => i.id !== id) });
@@ -287,19 +314,22 @@ export function Rocas({ clienteId, clienteNombre }: NoClientProps) {
         onClose={() => setViewMode(false)}
         mdContent={generateMd(data, clienteNombre)} mdFilename={makeMdFilename("rocas", clienteNombre)}>
         <DocSection label="Rocas Empresa">
-          {empresa.length === 0 ? <p style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>Sin rocas.</p>
-            : empresa.map((i) => <DocItem key={i.id} texto={i.texto} responsable={i.responsable} fecha={i.fecha} />)}
+          {empresaActivas.length === 0 ? <p style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>Sin rocas.</p>
+            : empresaActivas.map((i) => <DocItem key={i.id} texto={i.texto} responsable={i.responsable} fecha={i.fecha} />)}
         </DocSection>
         <DocSection label="Rocas Semanales">
-          {semanales.length === 0 ? <p style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>Sin rocas.</p>
-            : semanales.map((i) => <DocItem key={i.id} texto={i.texto} responsable={i.responsable} fecha={i.fecha} />)}
+          {semanalesActivas.length === 0 ? <p style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>Sin rocas.</p>
+            : semanalesActivas.map((i) => <DocItem key={i.id} texto={i.texto} responsable={i.responsable} fecha={i.fecha} />)}
         </DocSection>
-        {departamentos.map((dept) => (
-          <DocSection key={dept.id} label={dept.nombre || "Departamento"}>
-            {(dept.items || []).length === 0 ? <p style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>Sin rocas.</p>
-              : (dept.items || []).map((i) => <DocItem key={i.id} texto={i.texto} responsable={i.responsable} fecha={i.fecha} />)}
-          </DocSection>
-        ))}
+        {departamentos.map((dept) => {
+          const items = (dept.items || []).filter((i) => !i.completado);
+          return (
+            <DocSection key={dept.id} label={dept.nombre || "Departamento"}>
+              {items.length === 0 ? <p style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>Sin rocas.</p>
+                : items.map((i) => <DocItem key={i.id} texto={i.texto} responsable={i.responsable} fecha={i.fecha} />)}
+            </DocSection>
+          );
+        })}
       </DocumentViewer>
     );
   }
@@ -325,9 +355,9 @@ export function Rocas({ clienteId, clienteNombre }: NoClientProps) {
             <h2 className="mb-1 text-sm font-display font-semibold">Rocas Empresa</h2>
             <FieldHint>Prioridades de toda la organización este trimestre</FieldHint>
             <div className="mt-3">
-              {empresa.length === 0 && <p className="text-xs italic text-muted-foreground">Sin rocas.</p>}
-              <SortableContext items={empresa.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-                {empresa.map((item) => <SortableItemRow key={item.id} item={item} colId="empresa" onRemove={removeEmpresa} onUpdate={updateEmpresa} />)}
+              {empresaActivas.length === 0 && <p className="text-xs italic text-muted-foreground">Sin rocas.</p>}
+              <SortableContext items={empresaActivas.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                {empresaActivas.map((item) => <SortableItemRow key={item.id} item={item} colId="empresa" onRemove={removeEmpresa} onUpdate={updateEmpresa} />)}
               </SortableContext>
             </div>
             <AddForm placeholder="Roca…" onAdd={addEmpresa} />
@@ -337,9 +367,9 @@ export function Rocas({ clienteId, clienteNombre }: NoClientProps) {
             <h2 className="mb-1 text-sm font-display font-semibold">Rocas Semanales</h2>
             <FieldHint>Compromisos y tareas a revisar cada semana</FieldHint>
             <div className="mt-3">
-              {semanales.length === 0 && <p className="text-xs italic text-muted-foreground">Sin rocas.</p>}
-              <SortableContext items={semanales.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-                {semanales.map((item) => <SortableItemRow key={item.id} item={item} colId="semanales" onRemove={removeSemanal} onUpdate={updateSemanal} />)}
+              {semanalesActivas.length === 0 && <p className="text-xs italic text-muted-foreground">Sin rocas.</p>}
+              <SortableContext items={semanalesActivas.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                {semanalesActivas.map((item) => <SortableItemRow key={item.id} item={item} colId="semanales" onRemove={removeSemanal} onUpdate={updateSemanal} />)}
               </SortableContext>
             </div>
             <AddForm placeholder="Roca…" onAdd={addSemanal} />
@@ -363,6 +393,16 @@ export function Rocas({ clienteId, clienteNombre }: NoClientProps) {
           </div>
         </div>
       </DndContext>
+
+      <CompletadosPanel
+        titulo="Rocas completadas"
+        itemLabel="rocas"
+        tipo="rocas"
+        clienteNombre={clienteNombre}
+        columnas={getColumnas(data, "rocas")}
+        onUncheck={(colId, itemId) => setCompletado(colId, itemId, false)}
+        onClear={clearCompletados}
+      />
     </div>
   );
 }

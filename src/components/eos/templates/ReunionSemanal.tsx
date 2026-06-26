@@ -14,6 +14,9 @@ import {
   DocumentViewer, DocSection, DocField, DocRow,
   makeMdFilename,
 } from "@/components/ui/DocumentViewer";
+import {
+  useRocasAsuntos, SelectorRA, resolveSeleccionados, SeleccionDocField, seleccionMdLines,
+} from "./rocasAsuntosShared";
 
 type EstadoReunion = "preparada" | "en_curso" | "completada";
 
@@ -21,7 +24,12 @@ interface Reunion {
   id: string; estado: EstadoReunion; fecha: string; participantes: string; duracion: string;
   a_transicion: string; a_indicadores: string; a_rocas: string; a_noticias: string;
   a_tareas: string; a_ids: string; a_conclusion: string; acta: string; valoracion: number | null;
+  rocas_seleccionadas?: string[]; asuntos_seleccionados?: string[];
 }
+
+// Claves de agenda conectadas con Rocas / Asuntos
+const ROCAS_KEY = "a_rocas";
+const ASUNTOS_KEY = "a_ids";
 
 interface Data { reuniones: Reunion[] }
 const DEFAULT: Data = { reuniones: [] };
@@ -42,6 +50,7 @@ function newReunion(): Reunion {
     fecha: new Date().toISOString().split("T")[0], participantes: "", duracion: "",
     a_transicion: "", a_indicadores: "", a_rocas: "", a_noticias: "",
     a_tareas: "", a_ids: "", a_conclusion: "", acta: "", valoracion: null,
+    rocas_seleccionadas: [], asuntos_seleccionados: [],
   };
 }
 
@@ -58,12 +67,26 @@ const BADGE: Record<EstadoReunion, { label: string; cls: string }> = {
   completada: { label: "Completada", cls: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" },
 };
 
-function generateMd(r: Reunion, clienteNombre: string): string {
+function generateMd(
+  r: Reunion, clienteNombre: string,
+  selRocas: { texto: string; responsable: string }[],
+  selAsuntos: { texto: string; responsable: string }[],
+): string {
   const lines = [`# Reunión Semanal (Nivel 10) — ${clienteNombre}`, `\n**Fecha:** ${formatFecha(r.fecha)}`];
   if (r.participantes) lines.push(`**Participantes:** ${r.participantes}`);
   if (r.duracion) lines.push(`**Duración:** ${r.duracion}`);
   lines.push(`**Estado:** ${BADGE[r.estado]?.label}`, `\n## Agenda`);
-  for (const { key, label } of AGENDA) { if (r[key]) lines.push(`\n**${label}**\n${r[key] as string}`); }
+  for (const { key, label } of AGENDA) {
+    if (key === ROCAS_KEY) {
+      lines.push(...seleccionMdLines(label, selRocas));
+      if (r[key]) lines.push(`${selRocas.length ? "\n" : `\n**${label}**\n`}${r[key] as string}`);
+    } else if (key === ASUNTOS_KEY) {
+      lines.push(...seleccionMdLines(label, selAsuntos));
+      if (r[key]) lines.push(`${selAsuntos.length ? "\n" : `\n**${label}**\n`}${r[key] as string}`);
+    } else if (r[key]) {
+      lines.push(`\n**${label}**\n${r[key] as string}`);
+    }
+  }
   if (r.acta) lines.push(`\n## Acta\n${r.acta}`);
   if (r.valoracion !== null) lines.push(`\n**Valoración:** ${r.valoracion}/10`);
   return lines.join("\n");
@@ -71,6 +94,7 @@ function generateMd(r: Reunion, clienteNombre: string): string {
 
 export function ReunionSemanal({ clienteId, clienteNombre }: NoClientProps) {
   const { data, setData, saveNow, saving, loading } = usePlantilla<Data>(clienteId, "reunion_semanal", DEFAULT);
+  const { rocas, asuntos } = useRocasAsuntos(clienteId);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
 
@@ -84,22 +108,30 @@ export function ReunionSemanal({ clienteId, clienteNombre }: NoClientProps) {
 
   if (viewingId) {
     const r = data.reuniones.find((x) => x.id === viewingId);
-    if (r) return (
-      <DocumentViewer title="Reunión Semanal (Nivel 10)" clienteNombre={clienteNombre}
-        date={formatFecha(r.fecha)} onClose={() => setViewingId(null)}
-        mdContent={generateMd(r, clienteNombre)} mdFilename={makeMdFilename("reunion-semanal", clienteNombre, r.fecha)}>
-        <DocSection label="Reunión">
-          <DocRow label="Participantes" value={r.participantes} />
-          <DocRow label="Duración" value={r.duracion} />
-          <DocRow label="Estado" value={BADGE[r.estado]?.label} />
-          {r.valoracion !== null && <DocRow label="Valoración" value={`${r.valoracion}/10`} />}
-        </DocSection>
-        <DocSection label="Agenda">
-          {AGENDA.map(({ key, label }) => (r[key] as string) ? <DocField key={key} label={label} value={r[key] as string} /> : null)}
-        </DocSection>
-        {r.acta && <DocSection label="Acta"><DocField label="" value={r.acta} /></DocSection>}
-      </DocumentViewer>
-    );
+    if (r) {
+      const selRocas = resolveSeleccionados(rocas, "rocas", r.rocas_seleccionadas || []);
+      const selAsuntos = resolveSeleccionados(asuntos, "asuntos", r.asuntos_seleccionados || []);
+      return (
+        <DocumentViewer title="Reunión Semanal (Nivel 10)" clienteNombre={clienteNombre}
+          date={formatFecha(r.fecha)} onClose={() => setViewingId(null)}
+          mdContent={generateMd(r, clienteNombre, selRocas, selAsuntos)} mdFilename={makeMdFilename("reunion-semanal", clienteNombre, r.fecha)}>
+          <DocSection label="Reunión">
+            <DocRow label="Participantes" value={r.participantes} />
+            <DocRow label="Duración" value={r.duracion} />
+            <DocRow label="Estado" value={BADGE[r.estado]?.label} />
+            {r.valoracion !== null && <DocRow label="Valoración" value={`${r.valoracion}/10`} />}
+          </DocSection>
+          <DocSection label="Agenda">
+            {AGENDA.map(({ key, label }) => {
+              if (key === ROCAS_KEY) return <SeleccionDocField key={key} label={label} seleccion={selRocas} freeText={r[key] as string} />;
+              if (key === ASUNTOS_KEY) return <SeleccionDocField key={key} label={label} seleccion={selAsuntos} freeText={r[key] as string} />;
+              return (r[key] as string) ? <DocField key={key} label={label} value={r[key] as string} /> : null;
+            })}
+          </DocSection>
+          {r.acta && <DocSection label="Acta"><DocField label="" value={r.acta} /></DocSection>}
+        </DocumentViewer>
+      );
+    }
   }
 
   return (
@@ -163,6 +195,16 @@ export function ReunionSemanal({ clienteId, clienteNombre }: NoClientProps) {
                     <div className="space-y-4">
                       {AGENDA.map(({ key, label, hint }) => (
                         <div key={key}><SectionTitle>{label}</SectionTitle><FieldHint>{hint}</FieldHint>
+                          {key === ROCAS_KEY && (
+                            <SelectorRA data={rocas} tipo="rocas" selectedIds={r.rocas_seleccionadas || []}
+                              onChange={(ids) => update(r.id, { rocas_seleccionadas: ids })}
+                              emptyLabel="No hay rocas activas. Créalas en la sección Rocas." />
+                          )}
+                          {key === ASUNTOS_KEY && (
+                            <SelectorRA data={asuntos} tipo="asuntos" selectedIds={r.asuntos_seleccionados || []}
+                              onChange={(ids) => update(r.id, { asuntos_seleccionados: ids })}
+                              emptyLabel="No hay asuntos activos. Créalos en la sección Asuntos." />
+                          )}
                           <Textarea className="mt-2 min-h-[70px] bg-background" value={(r[key] as string) || ""} onChange={(e) => update(r.id, { [key]: e.target.value })} /></div>
                       ))}
                     </div>
